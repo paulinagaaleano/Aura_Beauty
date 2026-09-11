@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/Datos/">
+    <Project Path="Datos/Datos.csproj" Id="d8b39fa1-ceaf-4c8e-b373-0fc9cad222f1" />
+  </Folder>
+  <Folder Name="/Entidades/">
+    <Project Path="Entidades/Entidades.csproj" Id="1d4bb996-42d3-46f3-9900-7d039d2f5787" />
+  </Folder>
+  <Folder Name="/Negocio/">
+    <Project Path="Negocio/Negocio.csproj" Id="a3bb7b86-95bb-4816-b5e5-b32f596395e1" />
+  </Folder>
+  <Folder Name="/Presentacion/">
+    <Project Path="Presentacion/Presentacion.csproj" Id="dcf7eb2a-2d59-4f9b-9958-d4dd4b8f0e3d" />
+  </Folder>
+  <Project Path="Aura_Beauty/Aura_Beauty.csproj" Id="a776de95-6a99-4f20-964a-ee61444e7cf8" />
+</Solution>
