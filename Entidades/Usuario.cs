@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Entidades
+﻿namespace Entidades
 {
     public class Usuario
     {
@@ -9,7 +7,6 @@ namespace Entidades
         public string Apellido { get; set; }
         public string Correo { get; set; }
         public string Contraseña { get; set; }
-        public DateTime FechaRegistro { get; set; }
         public int IdRol { get; set; }
 
         // Propiedad extra para asociar el objeto Rol completo cuando lo necesites consultar
