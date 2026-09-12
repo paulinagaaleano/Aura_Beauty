@@ -42,6 +42,282 @@ namespace Negocio
             return obj_cd_usuario.Listar();
         }
 
+        /// <summary>
+        /// Registra un nuevo usuario.
+        ///
+        /// Antes de acceder a la base de datos,
+        /// valida toda la información recibida.
+        /// </summary>
+        /// <param name="usuario">
+        /// Usuario que se desea registrar.
+        /// </param>
+        /// <returns>
+        /// Devuelve el id generado para el nuevo usuario.
+        /// </returns>
+        public int Registrar(Usuario usuario)
+        {
+            /*
+             * Primero aplicamos todas las validaciones
+             * comunes de los datos del usuario.
+             */
+            ValidarDatosUsuario(usuario);
+
+
+            /*
+             * Trim()
+             *
+             * Elimina espacios al principio
+             * y al final del texto.
+             *
+             * Normalizamos los datos antes de guardarlos.
+             */
+            usuario.Nombre =
+                usuario.Nombre.Trim();
+
+            usuario.Apellido =
+                usuario.Apellido.Trim();
+
+            usuario.Correo =
+                usuario.Correo.Trim();
+
+
+            /*
+             * Antes de registrar comprobamos
+             * que el correo no esté utilizado
+             * por otro usuario.
+             */
+            if (obj_cd_usuario.ExisteCorreo(
+                usuario.Correo))
+            {
+                throw new ArgumentException(
+                    "Ya existe un usuario registrado con ese correo electrónico."
+                );
+            }
+
+
+            /*
+             * Si todas las validaciones fueron superadas,
+             * enviamos el usuario a la Capa de Datos.
+             */
+            return obj_cd_usuario.Registrar(
+                usuario
+            );
+        }
+
+
+
+        /// <summary>
+        /// Modifica un usuario existente.
+        /// </summary>
+        /// <param name="usuario">
+        /// Usuario con la información modificada.
+        /// </param>
+        /// <returns>
+        /// true si la modificación fue realizada.
+        /// </returns>
+        public bool Editar(Usuario usuario)
+        {
+            /*
+             * Para editar necesitamos saber
+             * qué usuario será modificado.
+             */
+            if (usuario == null)
+            {
+                throw new ArgumentException(
+                    "Debe indicar un usuario para editar."
+                );
+            }
+
+
+            if (usuario.IdUsuario <= 0)
+            {
+                throw new ArgumentException(
+                    "El usuario seleccionado no es válido."
+                );
+            }
+
+
+            // Aplicamos las mismas reglas generales
+            // utilizadas al registrar.
+            ValidarDatosUsuario(usuario);
+
+
+            usuario.Nombre =
+                usuario.Nombre.Trim();
+
+            usuario.Apellido =
+                usuario.Apellido.Trim();
+
+            usuario.Correo =
+                usuario.Correo.Trim();
+
+
+            /*
+             * Al editar debemos comprobar que el correo
+             * no pertenezca a OTRO usuario.
+             *
+             * Por eso enviamos usuario.IdUsuario
+             * para excluir al usuario que estamos editando.
+             *
+             * Ejemplo:
+             *
+             * Silvina tiene:
+             * silvina@gmail.com
+             *
+             * Si editamos solamente su apellido,
+             * el sistema no debe interpretar
+             * su propio correo como duplicado.
+             */
+            if (obj_cd_usuario.ExisteCorreo(
+                usuario.Correo,
+                usuario.IdUsuario))
+            {
+                throw new ArgumentException(
+                    "Ya existe otro usuario registrado con ese correo electrónico."
+                );
+            }
+
+
+            return obj_cd_usuario.Editar(
+                usuario
+            );
+        }
+
+
+
+        /// <summary>
+        /// Elimina un usuario según su identificador.
+        /// </summary>
+        /// <param name="idUsuario">
+        /// Id del usuario a eliminar.
+        /// </param>
+        /// <returns>
+        /// true si se eliminó correctamente.
+        /// </returns>
+        public bool Eliminar(int idUsuario)
+        {
+            /*
+             * Un id válido debe ser mayor que cero.
+             */
+            if (idUsuario <= 0)
+            {
+                throw new ArgumentException(
+                    "Debe seleccionar un usuario válido para eliminar."
+                );
+            }
+
+
+            return obj_cd_usuario.Eliminar(
+                idUsuario
+            );
+        }
+
+
+
+        /// <summary>
+        /// Valida los datos generales de un usuario.
+        ///
+        /// Este método es privado porque únicamente
+        /// se utiliza dentro de CN_Usuario.
+        /// </summary>
+        /// <param name="usuario">
+        /// Usuario cuyos datos serán comprobados.
+        /// </param>
+        private void ValidarDatosUsuario(
+            Usuario usuario)
+        {
+            /*
+             * null
+             *
+             * Significa que el objeto no existe
+             * o no contiene una referencia válida.
+             */
+            if (usuario == null)
+            {
+                throw new ArgumentException(
+                    "Los datos del usuario son obligatorios."
+                );
+            }
+
+
+            /*
+             * string.IsNullOrWhiteSpace(...)
+             *
+             * Devuelve true cuando un texto:
+             *
+             * - es null,
+             * - está vacío,
+             * - o contiene únicamente espacios.
+             */
+            if (string.IsNullOrWhiteSpace(
+                usuario.Nombre))
+            {
+                throw new ArgumentException(
+                    "El nombre es obligatorio."
+                );
+            }
+
+
+            if (string.IsNullOrWhiteSpace(
+                usuario.Apellido))
+            {
+                throw new ArgumentException(
+                    "El apellido es obligatorio."
+                );
+            }
+
+
+            if (string.IsNullOrWhiteSpace(
+                usuario.Correo))
+            {
+                throw new ArgumentException(
+                    "El correo electrónico es obligatorio."
+                );
+            }
+
+
+            /*
+             * Validación básica del formato del correo.
+             */
+            string correo =
+                usuario.Correo.Trim();
+
+
+            if (!correo.Contains("@") ||
+                !correo.Contains("."))
+            {
+                throw new ArgumentException(
+                    "El formato del correo electrónico no es válido."
+                );
+            }
+
+
+            if (string.IsNullOrWhiteSpace(
+                usuario.Contraseña))
+            {
+                throw new ArgumentException(
+                    "La contraseña es obligatoria."
+                );
+            }
+
+
+            /*
+             * El rol debe tener un identificador válido.
+             *
+             * Actualmente tenemos:
+             *
+             * 1 = Administrador
+             * 2 = Vendedor
+             * 3 = Repositor
+             */
+            if (usuario.IdRol <= 0)
+            {
+                throw new ArgumentException(
+                    "Debe seleccionar un rol para el usuario."
+                );
+            }
+        }
+
 
         /// <summary>
         /// Valida los datos ingresados para iniciar sesión.

@@ -1,34 +1,51 @@
-﻿using Datos;
+﻿using System.Collections.Generic;
+using Datos;
 using Entidades;
-using System.Collections.Generic;
 
 namespace Negocio
 {
     /// <summary>
     /// Clase perteneciente a la Capa de Negocio.
-    /// Se encarga de gestionar las operaciones relacionadas
-    /// con los roles del sistema.
     ///
-    /// Actúa como intermediaria entre la Capa de Presentación
-    /// y la Capa de Datos.
+    /// Su responsabilidad es trabajar con la información
+    /// relacionada con los roles del sistema.
+    ///
+    /// Esta clase funciona como intermediaria entre:
+    /// - la Capa de Presentación
+    /// - y la Capa de Datos.
+    ///
+    /// La Presentación no accede directamente a SQL Server.
     /// </summary>
     public class CN_Rol
     {
-        // Se crea una instancia de CD_Rol para poder utilizar
-        // las operaciones de acceso a datos relacionadas con roles.
+        /// <summary>
+        /// Objeto de la Capa de Datos utilizado
+        /// para obtener la información de los roles.
+        /// </summary>
         private CD_Rol obj_cd_rol = new CD_Rol();
 
+
         /// <summary>
-        /// Solicita a la Capa de Datos la lista de roles
-        /// registrados en la base de datos.
+        /// Obtiene la lista completa de roles registrados
+        /// en la base de datos.
+        ///
+        /// Actualmente los roles son:
+        /// 1 = Administrador
+        /// 2 = Vendedor
+        /// 3 = Repositor
         /// </summary>
         /// <returns>
         /// Devuelve una lista de objetos Rol.
         /// </returns>
         public List<Rol> Listar()
         {
-            // CN_Rol no realiza consultas SQL.
-            // Delega esa responsabilidad a CD_Rol.
+            /*
+             * Llamamos al método Listar()
+             * de la Capa de Datos.
+             *
+             * CD_Rol se encarga de consultar
+             * la tabla Rol en SQL Server.
+             */
             return obj_cd_rol.Listar();
         }
     }

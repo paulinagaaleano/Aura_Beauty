@@ -742,12 +742,32 @@ namespace Aura_Beauty
                     {
                         case 1:
 
-                            MessageBox.Show(
-                                "Módulo: Gestión de Usuarios y Roles",
-                                "Aura Beauty",
-                                MessageBoxButtons.OK,
-                                MessageBoxIcon.Information
-                            );
+                            /*
+                             * Creamos una nueva instancia del formulario
+                             * de Gestión de Usuarios.
+                             *
+                             * "new frmUsuarios()" significa:
+                             * crear un nuevo objeto basado en la clase frmUsuarios.
+                             */
+                            frmUsuarios formularioUsuarios =
+                                new frmUsuarios();
+
+
+                            /*
+                             * ShowDialog()
+                             *
+                             * Abre el formulario como una ventana modal.
+                             *
+                             * Mientras frmUsuarios esté abierto,
+                             * el usuario debe cerrarlo antes de volver
+                             * a interactuar con el menú principal.
+                             *
+                             * Para este módulo es conveniente porque evita
+                             * abrir varias ventanas de Gestión de Usuarios
+                             * al mismo tiempo.
+                             */
+                            formularioUsuarios.ShowDialog();
+
 
                             break;
 

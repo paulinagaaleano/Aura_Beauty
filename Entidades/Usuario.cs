@@ -1,5 +1,17 @@
 ﻿namespace Entidades
 {
+    /// <summary>
+    /// Representa a un usuario del sistema Aura Beauty.
+    ///
+    /// Esta clase pertenece a la Capa de Entidades.
+    ///
+    /// Su función es transportar la información de un usuario
+    /// entre las distintas capas del sistema.
+    ///
+    /// No contiene consultas SQL,
+    /// no contiene reglas de negocio
+    /// y no contiene elementos visuales.
+    /// </summary>
     public class Usuario
     {
         public int IdUsuario { get; set; }
