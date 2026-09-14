@@ -809,13 +809,10 @@ namespace Aura_Beauty
 
 
                         case 5:
-
-                            MessageBox.Show(
-                                "Módulo: Gestión de Clientes",
-                                "Aura Beauty",
-                                MessageBoxButtons.OK,
-                                MessageBoxIcon.Information
-                            );
+                            using (frmClientes formularioClientes = new frmClientes())
+                            {
+                                formularioClientes.ShowDialog();
+                            }
 
                             break;
 
