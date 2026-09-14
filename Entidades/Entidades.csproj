@@ -55,6 +55,8 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Rol.cs" />
     <Compile Include="Usuario.cs" />
+    <Compile Include="VentaCabecera.cs" />
+    <Compile Include="VentaDetalle.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>

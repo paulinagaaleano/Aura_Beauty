@@ -797,13 +797,12 @@ namespace Aura_Beauty
 
 
                         case 4:
-
-                            MessageBox.Show(
-                                "Módulo: Registro de Ventas",
-                                "Aura Beauty",
-                                MessageBoxButtons.OK,
-                                MessageBoxIcon.Information
-                            );
+                            // Abre el Punto de Venta y le pasa
+                            // el usuario que inició sesión.
+                            using (frmVentas formularioVentas = new frmVentas(usuarioActual))
+                            {
+                                formularioVentas.ShowDialog();
+                            }
 
                             break;
 
