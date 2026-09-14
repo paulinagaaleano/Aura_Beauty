@@ -817,14 +817,10 @@ namespace Aura_Beauty
 
 
                         case 6:
-
-                            MessageBox.Show(
-                                "Módulo: Reportes y Estadísticas",
-                                "Aura Beauty",
-                                MessageBoxButtons.OK,
-                                MessageBoxIcon.Information
-                            );
-
+                            using (frmReportes formularioReportes = new frmReportes())
+                            {
+                                formularioReportes.ShowDialog();
+                            }
                             break;
                     }
                 }
