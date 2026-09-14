@@ -773,13 +773,16 @@ namespace Aura_Beauty
 
 
                         case 2:
+                            /*
+                             * Abrimos la Gestión de Categorías.
+                             *
+                             * Este formulario permitirá cargar las categorías
+                             * que luego serán utilizadas por los productos.
+                             */
+                            frmCategorias formularioCategorias =
+                                new frmCategorias();
 
-                            MessageBox.Show(
-                                "Módulo: Productos",
-                                "Aura Beauty",
-                                MessageBoxButtons.OK,
-                                MessageBoxIcon.Information
-                            );
+                            formularioCategorias.ShowDialog();
 
                             break;
 
