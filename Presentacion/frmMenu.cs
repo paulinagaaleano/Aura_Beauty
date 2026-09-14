@@ -786,13 +786,12 @@ namespace Aura_Beauty
 
 
                         case 3:
-
-                            MessageBox.Show(
-                                "Módulo: Control de Stock",
-                                "Aura Beauty",
-                                MessageBoxButtons.OK,
-                                MessageBoxIcon.Information
-                            );
+                            // Abre el módulo específico para controlar
+                            // y actualizar las existencias de productos.
+                            using (frmStock formularioStock = new frmStock())
+                            {
+                                formularioStock.ShowDialog();
+                            }
 
                             break;
 
