@@ -120,10 +120,30 @@ namespace Negocio
 
         /// <summary>
         /// Realiza la baja lógica de una categoría.
+        ///
+        /// Antes de solicitar la eliminación a la capa de Datos,
+        /// verifica que la categoría no tenga productos activos
+        /// asociados.
+        ///
+        /// Esta validación corresponde a la capa de Negocio
+        /// porque representa una regla del sistema:
+        ///
+        /// una categoría utilizada por productos activos
+        /// no puede darse de baja.
         /// </summary>
+        /// <param name="idCategoria">
+        /// Identificador de la categoría seleccionada.
+        /// </param>
+        /// <returns>
+        /// Devuelve true si la baja lógica se realizó correctamente.
+        /// </returns>
         public bool Eliminar(
             int idCategoria)
         {
+            // =========================================================
+            // 1. VALIDAR IDENTIFICADOR
+            // =========================================================
+
             if (idCategoria <= 0)
             {
                 throw new ArgumentException(
@@ -132,11 +152,44 @@ namespace Negocio
             }
 
 
-            return obj_cd_categoria.Eliminar(
-                idCategoria
-            );
-        }
+            // =========================================================
+            // 2. VERIFICAR PRODUCTOS ACTIVOS
+            // =========================================================
 
+            bool tieneProductosActivos =
+                obj_cd_categoria.TieneProductosActivos(
+                    idCategoria
+                );
+
+
+            if (tieneProductosActivos)
+            {
+                throw new InvalidOperationException(
+                    "No se puede eliminar la categoría porque tiene productos activos asociados."
+                );
+            }
+
+
+            // =========================================================
+            // 3. REALIZAR BAJA LÓGICA
+            // =========================================================
+
+            bool eliminado =
+                obj_cd_categoria.Eliminar(
+                    idCategoria
+                );
+
+
+            if (!eliminado)
+            {
+                throw new InvalidOperationException(
+                    "No fue posible eliminar la categoría."
+                );
+            }
+
+
+            return true;
+        }
 
         /// <summary>
         /// Valida los datos generales

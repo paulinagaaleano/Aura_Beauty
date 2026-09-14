@@ -281,12 +281,87 @@ namespace Datos
 
 
         /// <summary>
-        /// Realiza una baja lógica.
+        /// Verifica si una categoría tiene productos activos asociados.
         ///
-        /// NO elimina físicamente la categoría.
-        /// Solamente guarda la fecha de baja
-        /// en deleted_at.
+        /// Un producto se considera activo cuando su campo
+        /// deleted_at es NULL.
+        ///
+        /// Este método solamente consulta la base de datos.
+        /// No modifica ningún registro.
         /// </summary>
+        /// <param name="idCategoria">
+        /// Identificador de la categoría que se desea verificar.
+        /// </param>
+        /// <returns>
+        /// Devuelve true si existe al menos un producto activo
+        /// perteneciente a la categoría.
+        ///
+        /// Devuelve false si la categoría no tiene productos activos.
+        /// </returns>
+        public bool TieneProductosActivos(
+            int idCategoria)
+        {
+            using (SqlConnection oconexion =
+                   new SqlConnection(Conexion.cadena))
+            {
+                try
+                {
+                    string query = @"
+                SELECT COUNT(*)
+                FROM Producto
+                WHERE id_categoria = @id_categoria
+                  AND deleted_at IS NULL";
+
+                    SqlCommand cmd =
+                        new SqlCommand(
+                            query,
+                            oconexion
+                        );
+
+                    cmd.CommandType =
+                        CommandType.Text;
+
+                    cmd.Parameters.Add(
+                        "@id_categoria",
+                        SqlDbType.Int
+                    ).Value =
+                        idCategoria;
+
+                    oconexion.Open();
+
+                    int cantidad =
+                        Convert.ToInt32(
+                            cmd.ExecuteScalar()
+                        );
+
+                    return cantidad > 0;
+                }
+                catch (Exception)
+                {
+                    throw;
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Realiza la baja lógica de una categoría.
+        ///
+        /// NO elimina físicamente el registro.
+        /// Guarda la fecha de baja en deleted_at.
+        ///
+        /// Como protección adicional, la consulta solamente
+        /// permite realizar la baja si no existen productos
+        /// activos asociados a la categoría.
+        /// </summary>
+        /// <param name="idCategoria">
+        /// Identificador de la categoría que se desea dar de baja.
+        /// </param>
+        /// <returns>
+        /// Devuelve true si la categoría fue dada de baja.
+        ///
+        /// Devuelve false si no se pudo modificar ningún registro.
+        /// </returns>
         public bool Eliminar(
             int idCategoria)
         {
@@ -296,23 +371,39 @@ namespace Datos
                 try
                 {
                     string query = @"
-                        UPDATE Categoria
-                        SET
-                            deleted_at = GETDATE(),
-                            updated_at = GETDATE()
-                        WHERE Id_categoria = @id_categoria
-                          AND deleted_at IS NULL";
+                UPDATE Categoria
+                SET
+                    deleted_at = GETDATE(),
+                    updated_at = GETDATE()
+
+                WHERE Id_categoria = @id_categoria
+
+                  AND deleted_at IS NULL
+
+                  AND NOT EXISTS
+                  (
+                      SELECT 1
+                      FROM Producto
+                      WHERE Producto.id_categoria =
+                            Categoria.Id_categoria
+
+                        AND Producto.deleted_at IS NULL
+                  )";
 
                     SqlCommand cmd =
-                        new SqlCommand(query, oconexion);
+                        new SqlCommand(
+                            query,
+                            oconexion
+                        );
 
                     cmd.CommandType =
                         CommandType.Text;
 
-                    cmd.Parameters.AddWithValue(
+                    cmd.Parameters.Add(
                         "@id_categoria",
-                        idCategoria
-                    );
+                        SqlDbType.Int
+                    ).Value =
+                        idCategoria;
 
                     oconexion.Open();
 
