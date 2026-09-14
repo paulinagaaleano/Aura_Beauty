@@ -11,5 +11,4 @@
   <Folder Name="/Presentacion/">
     <Project Path="Presentacion/Presentacion.csproj" Id="dcf7eb2a-2d59-4f9b-9958-d4dd4b8f0e3d" />
   </Folder>
-  <Project Path="Aura_Beauty/Aura_Beauty.csproj" Id="a776de95-6a99-4f20-964a-ee61444e7cf8" />
 </Solution>
