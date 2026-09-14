@@ -773,16 +773,14 @@ namespace Aura_Beauty
 
 
                         case 2:
-                            /*
-                             * Abrimos la Gestión de Categorías.
-                             *
-                             * Este formulario permitirá cargar las categorías
-                             * que luego serán utilizadas por los productos.
-                             */
-                            frmCategorias formularioCategorias =
-                                new frmCategorias();
+                            // El Vendedor solamente puede consultar productos.
+                            // Administrador y Repositor pueden gestionar el catálogo.
+                            bool soloConsulta = usuarioActual.IdRol == ROL_VENDEDOR;
 
-                            formularioCategorias.ShowDialog();
+                            using (frmProductos formularioProductos = new frmProductos(soloConsulta))
+                            {
+                                formularioProductos.ShowDialog();
+                            }
 
                             break;
 
