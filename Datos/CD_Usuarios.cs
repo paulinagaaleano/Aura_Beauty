@@ -17,11 +17,14 @@ namespace Datos
     public class CD_Usuario
     {
         /// <summary>
-        /// Obtiene todos los usuarios registrados en la base de datos,
+        /// Obtiene los usuarios activos registrados en la base de datos,
         /// incluyendo la información correspondiente a su rol.
+        ///
+        /// Los usuarios dados de baja lógicamente no se muestran
+        /// en la gestión habitual de usuarios.
         /// </summary>
         /// <returns>
-        /// Devuelve una lista de objetos Usuario.
+        /// Lista de usuarios cuyo campo deleted_at es NULL.
         /// </returns>
         public List<Usuario> Listar()
         {
@@ -33,57 +36,83 @@ namespace Datos
                 try
                 {
                     string query = @"
-                        SELECT 
-                            u.id_usuario,
-                            u.nombre,
-                            u.apellido,
-                            u.correo,
-                            u.contraseña,
-                            u.id_rol,
-                            r.descripcion AS RolDescripcion
-                        FROM Usuario u
-                        INNER JOIN Rol r
-                            ON u.id_rol = r.id_rol";
+                SELECT 
+                    u.id_usuario,
+                    u.nombre,
+                    u.apellido,
+                    u.correo,
+                    u.contraseña,
+                    u.id_rol,
+                    u.deleted_at,
+                    r.descripcion AS RolDescripcion
+                FROM Usuario u
+                INNER JOIN Rol r
+                    ON u.id_rol = r.id_rol
+                WHERE u.deleted_at IS NULL";
 
-                    SqlCommand cmd = new SqlCommand(query, oconexion);
+                    SqlCommand cmd =
+                        new SqlCommand(query, oconexion);
 
-                    cmd.CommandType = CommandType.Text;
+                    cmd.CommandType =
+                        CommandType.Text;
 
                     oconexion.Open();
 
-                    using (SqlDataReader dr = cmd.ExecuteReader())
+                    using (SqlDataReader dr =
+                           cmd.ExecuteReader())
                     {
                         while (dr.Read())
                         {
-                            Usuario usuario = new Usuario()
-                            {
-                                IdUsuario =
-                                    Convert.ToInt32(dr["id_usuario"]),
-
-                                Nombre =
-                                    dr["nombre"].ToString(),
-
-                                Apellido =
-                                    dr["apellido"].ToString(),
-
-                                Correo =
-                                    dr["correo"].ToString(),
-
-                                Contraseña =
-                                    dr["contraseña"].ToString(),
-
-                                IdRol =
-                                    Convert.ToInt32(dr["id_rol"]),
-
-                                oRol = new Rol()
+                            Usuario usuario =
+                                new Usuario()
                                 {
-                                    IdRol =
-                                        Convert.ToInt32(dr["id_rol"]),
+                                    IdUsuario =
+                                        Convert.ToInt32(
+                                            dr["id_usuario"]
+                                        ),
 
-                                    Descripcion =
-                                        dr["RolDescripcion"].ToString()
-                                }
-                            };
+                                    Nombre =
+                                        dr["nombre"].ToString(),
+
+                                    Apellido =
+                                        dr["apellido"].ToString(),
+
+                                    Correo =
+                                        dr["correo"].ToString(),
+
+                                    Contraseña =
+                                        dr["contraseña"].ToString(),
+
+                                    IdRol =
+                                        Convert.ToInt32(
+                                            dr["id_rol"]
+                                        ),
+
+                                    /*
+                                     * Como la consulta solamente devuelve
+                                     * usuarios activos, deleted_at será NULL.
+                                     */
+                                    DeletedAt =
+                                        dr["deleted_at"] == DBNull.Value
+                                        ? (DateTime?)null
+                                        : Convert.ToDateTime(
+                                            dr["deleted_at"]
+                                        ),
+
+                                    oRol =
+                                        new Rol()
+                                        {
+                                            IdRol =
+                                                Convert.ToInt32(
+                                                    dr["id_rol"]
+                                                ),
+
+                                            Descripcion =
+                                                dr[
+                                                    "RolDescripcion"
+                                                ].ToString()
+                                        }
+                                };
 
                             lista.Add(usuario);
                         }
@@ -91,8 +120,6 @@ namespace Datos
                 }
                 catch (Exception)
                 {
-                    // Se relanza la excepción para que pueda ser manejada
-                    // en una capa superior.
                     throw;
                 }
             }
@@ -313,15 +340,22 @@ namespace Datos
         }
 
 
-
         /// <summary>
-        /// Elimina un usuario de la base de datos.
+        /// Realiza la baja lógica de un usuario.
+        ///
+        /// El registro NO se elimina físicamente de la base de datos.
+        /// En su lugar, se guarda la fecha y hora de la baja
+        /// en el campo deleted_at.
+        ///
+        /// Esto permite conservar las relaciones históricas del usuario,
+        /// por ejemplo las ventas que realizó.
         /// </summary>
         /// <param name="idUsuario">
-        /// Identificador del usuario a eliminar.
+        /// Identificador del usuario que será dado de baja.
         /// </param>
         /// <returns>
-        /// Devuelve true si se eliminó una fila.
+        /// true si el usuario fue dado de baja correctamente.
+        /// false si no se modificó ninguna fila.
         /// </returns>
         public bool Eliminar(int idUsuario)
         {
@@ -330,29 +364,38 @@ namespace Datos
             {
                 try
                 {
+                    /*
+                     * Antes se utilizaba:
+                     *
+                     * DELETE FROM Usuario
+                     *
+                     * Eso intentaba eliminar físicamente el registro
+                     * y podía entrar en conflicto con VentaCabecera.
+                     *
+                     * Ahora utilizamos UPDATE para realizar
+                     * una baja lógica.
+                     */
                     string query = @"
-                        DELETE FROM Usuario
-                        WHERE id_usuario = @id_usuario";
-
+                UPDATE Usuario
+                SET deleted_at = GETDATE()
+                WHERE id_usuario = @id_usuario
+                  AND deleted_at IS NULL";
 
                     SqlCommand cmd =
                         new SqlCommand(query, oconexion);
 
-                    cmd.CommandType = CommandType.Text;
-
+                    cmd.CommandType =
+                        CommandType.Text;
 
                     cmd.Parameters.AddWithValue(
                         "@id_usuario",
                         idUsuario
                     );
 
-
                     oconexion.Open();
-
 
                     int filasAfectadas =
                         cmd.ExecuteNonQuery();
-
 
                     return filasAfectadas > 0;
                 }
@@ -441,22 +484,29 @@ namespace Datos
 
 
         /// <summary>
-        /// Busca en la base de datos un usuario cuyo correo y contraseña
-        /// coincidan con los datos ingresados.
+        /// Busca un usuario activo cuyo correo y contraseña
+        /// coincidan con las credenciales ingresadas.
+        ///
+        /// Un usuario dado de baja lógicamente no puede
+        /// volver a iniciar sesión.
         /// </summary>
         /// <param name="correo">
-        /// Correo electrónico ingresado por el usuario.
+        /// Correo electrónico ingresado.
         /// </param>
         /// <param name="contraseña">
-        /// Contraseña ingresada por el usuario.
+        /// Contraseña ingresada.
         /// </param>
         /// <returns>
-        /// Devuelve un objeto Usuario si las credenciales son correctas.
+        /// Usuario autenticado si las credenciales son correctas
+        /// y el usuario está activo.
         /// Si no existe coincidencia, devuelve null.
         /// </returns>
-        public Usuario ValidarLogin(string correo, string contraseña)
+        public Usuario ValidarLogin(
+            string correo,
+            string contraseña)
         {
-            Usuario usuarioEncontrado = null;
+            Usuario usuarioEncontrado =
+                null;
 
             using (SqlConnection oconexion =
                    new SqlConnection(Conexion.cadena))
@@ -464,27 +514,28 @@ namespace Datos
                 try
                 {
                     string query = @"
-                        SELECT
-                            u.id_usuario,
-                            u.nombre,
-                            u.apellido,
-                            u.correo,
-                            u.contraseña,
-                            u.id_rol,
-                            r.descripcion AS RolDescripcion
-                        FROM Usuario u
-                        INNER JOIN Rol r
-                            ON u.id_rol = r.id_rol
-                        WHERE u.correo = @correo
-                          AND u.contraseña = @contraseña";
+                SELECT
+                    u.id_usuario,
+                    u.nombre,
+                    u.apellido,
+                    u.correo,
+                    u.contraseña,
+                    u.id_rol,
+                    u.deleted_at,
+                    r.descripcion AS RolDescripcion
+                FROM Usuario u
+                INNER JOIN Rol r
+                    ON u.id_rol = r.id_rol
+                WHERE u.correo = @correo
+                  AND u.contraseña = @contraseña
+                  AND u.deleted_at IS NULL";
 
                     SqlCommand cmd =
                         new SqlCommand(query, oconexion);
 
-                    cmd.CommandType = CommandType.Text;
+                    cmd.CommandType =
+                        CommandType.Text;
 
-                    // Se utilizan parámetros para evitar concatenar
-                    // directamente los valores dentro de la consulta SQL.
                     cmd.Parameters.AddWithValue(
                         "@correo",
                         correo
@@ -525,6 +576,13 @@ namespace Datos
                                     IdRol =
                                         Convert.ToInt32(
                                             dr["id_rol"]
+                                        ),
+
+                                    DeletedAt =
+                                        dr["deleted_at"] == DBNull.Value
+                                        ? (DateTime?)null
+                                        : Convert.ToDateTime(
+                                            dr["deleted_at"]
                                         ),
 
                                     oRol =

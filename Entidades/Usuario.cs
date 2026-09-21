@@ -1,4 +1,6 @@
-﻿namespace Entidades
+﻿using System;
+
+namespace Entidades
 {
     /// <summary>
     /// Representa a un usuario del sistema Aura Beauty.
@@ -23,5 +25,7 @@
 
         // Propiedad extra para asociar el objeto Rol completo cuando lo necesites consultar
         public Rol oRol { get; set; }
+
+        public DateTime? DeletedAt { get; set; }
     }
 }
