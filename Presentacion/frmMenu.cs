@@ -550,8 +550,42 @@ namespace Aura_Beauty
                         210
                     );
 
-                    break;
+                    /*
+                     * MIS VENTAS
+                     *
+                     * Esta opción pertenece al rol Vendedor.
+                     *
+                     * Permite consultar exclusivamente el historial
+                     * correspondiente al usuario que inició sesión.
+                     *
+                     * El número 7 identifica internamente este módulo.
+                     */
+                    CrearBotonModulo(
+                        "Mis Ventas",
+                        7,
+                        480,
+                        210
+                    );
 
+                    /*
+                     * CIERRE DE CAJA
+                     *
+                     * Esta opción pertenece al rol Vendedor.
+                     *
+                     * Permite consultar el resumen de las ventas
+                     * realizadas por el usuario autenticado
+                     * durante una jornada determinada.
+                     *
+                     * El número 8 identifica internamente este módulo.
+                     */
+                    CrearBotonModulo(
+                        "Cierre de Caja",
+                        8,
+                        60,
+                        310
+                    );
+
+                    break;
 
                 // =================================================
                 // REPOSITOR
@@ -821,6 +855,40 @@ namespace Aura_Beauty
                             {
                                 formularioReportes.ShowDialog();
                             }
+                            break;
+
+                        
+                        case 7:
+
+                            /*
+                             * Abre el historial personal del vendedor.
+                             *
+                             * Se pasa el usuario autenticado para que
+                             * solamente pueda consultar sus propias ventas.
+                             */
+                            using (frmMisVentas formularioMisVentas =
+                                   new frmMisVentas(usuarioActual))
+                            {
+                                formularioMisVentas.ShowDialog();
+                            }
+
+                            break;
+
+                        case 8:
+
+                            /*
+                             * Abre el Cierre de Caja del vendedor.
+                             *
+                             * Se envía usuarioActual para que el formulario
+                             * conozca la identidad del vendedor que inició
+                             * sesión y consulte solamente sus ventas.
+                             */
+                            using (frmCierreCaja formularioCierreCaja =
+                                   new frmCierreCaja(usuarioActual))
+                            {
+                                formularioCierreCaja.ShowDialog();
+                            }
+
                             break;
                     }
                 }
