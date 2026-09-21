@@ -800,7 +800,7 @@ namespace Aura_Beauty
                              * abrir varias ventanas de Gestión de Usuarios
                              * al mismo tiempo.
                              */
-                            formularioUsuarios.ShowDialog();
+                            AbrirFormularioConVolver(formularioUsuarios);
 
 
                             break;
@@ -813,7 +813,7 @@ namespace Aura_Beauty
 
                             using (frmProductos formularioProductos = new frmProductos(soloConsulta))
                             {
-                                formularioProductos.ShowDialog();
+                                AbrirFormularioConVolver(formularioProductos);
                             }
 
                             break;
@@ -824,7 +824,7 @@ namespace Aura_Beauty
                             // y actualizar las existencias de productos.
                             using (frmStock formularioStock = new frmStock())
                             {
-                                formularioStock.ShowDialog();
+                                AbrirFormularioConVolver(formularioStock);
                             }
 
                             break;
@@ -835,7 +835,7 @@ namespace Aura_Beauty
                             // el usuario que inició sesión.
                             using (frmVentas formularioVentas = new frmVentas(usuarioActual))
                             {
-                                formularioVentas.ShowDialog();
+                                AbrirFormularioConVolver(formularioVentas);
                             }
 
                             break;
@@ -844,7 +844,7 @@ namespace Aura_Beauty
                         case 5:
                             using (frmClientes formularioClientes = new frmClientes())
                             {
-                                formularioClientes.ShowDialog();
+                                AbrirFormularioConVolver(formularioClientes);
                             }
 
                             break;
@@ -853,7 +853,7 @@ namespace Aura_Beauty
                         case 6:
                             using (frmReportes formularioReportes = new frmReportes())
                             {
-                                formularioReportes.ShowDialog();
+                                AbrirFormularioConVolver(formularioReportes);
                             }
                             break;
 
@@ -869,7 +869,7 @@ namespace Aura_Beauty
                             using (frmMisVentas formularioMisVentas =
                                    new frmMisVentas(usuarioActual))
                             {
-                                formularioMisVentas.ShowDialog();
+                                AbrirFormularioConVolver(formularioMisVentas);
                             }
 
                             break;
@@ -886,14 +886,143 @@ namespace Aura_Beauty
                             using (frmCierreCaja formularioCierreCaja =
                                    new frmCierreCaja(usuarioActual))
                             {
-                                formularioCierreCaja.ShowDialog();
+                                AbrirFormularioConVolver(formularioCierreCaja);
                             }
 
                             break;
                     }
                 }
+
             }
+
         }
+                        // ---------------------------------------------------------
+                        // PREPARAR FORMULARIO SECUNDARIO
+                        // ---------------------------------------------------------
+
+                        /// <summary>
+                        /// Agrega automáticamente un botón "Volver al menú"
+                        /// a los formularios que se abren desde el menú principal.
+                        ///
+                        /// De esta manera no es necesario modificar individualmente
+                        /// cada formulario del sistema.
+                        /// </summary>
+                        /// <param name="formulario">
+                        /// Formulario que se desea abrir.
+                        /// </param>
+                        private void AbrirFormularioConVolver(Form formulario)
+                    {
+                        /*
+                         * Creamos dinámicamente un botón.
+                         *
+                         * "Dinámicamente" significa que el botón no está
+                         * colocado desde el Designer del formulario,
+                         * sino que se crea mediante código cuando se abre.
+                         */
+                        Button btnVolver =
+                            new Button();
+
+
+                        btnVolver.Name =
+                            "btnVolverMenu";
+
+                        btnVolver.Text =
+                            "← Volver al menú";
+
+
+                        /*
+                         * Utilizamos la misma estética general
+                         * de Aura Beauty.
+                         */
+                        btnVolver.Font =
+                            new Font(
+                                "Segoe UI",
+                                9.5F,
+                                FontStyle.Bold
+                            );
+
+                        btnVolver.BackColor =
+                            Color.White;
+
+                        btnVolver.ForeColor =
+                            textoPrincipal;
+
+                        btnVolver.FlatStyle =
+                            FlatStyle.Flat;
+
+                        btnVolver.FlatAppearance.BorderSize =
+                            0;
+
+                        btnVolver.Cursor =
+                            Cursors.Hand;
+
+                        btnVolver.Size =
+                            new Size(150, 38);
+
+
+                        /*
+                         * Anchor indica que el botón conservará
+                         * su posición respecto del borde superior
+                         * y derecho si el formulario cambia de tamaño.
+                         */
+                        btnVolver.Anchor =
+                            AnchorStyles.Top |
+                            AnchorStyles.Right;
+
+
+                        /*
+                         * Lo ubicamos automáticamente cerca
+                         * de la esquina superior derecha.
+                         */
+                        btnVolver.Location =
+                            new Point(
+                                formulario.ClientSize.Width
+                                    - btnVolver.Width
+                                    - 25,
+                                25
+                            );
+
+
+                            /*
+                             * Cuando el usuario presiona el botón,
+                             * cerramos solamente el formulario secundario.
+                             *
+                             * Como el menú continúa abierto detrás,
+                             * vuelve a quedar disponible automáticamente.
+                             */
+                            btnVolver.Click +=
+                                (sender, e) =>
+                                {
+                                    formulario.Close();
+                                };
+
+
+                            /*
+                             * Agregamos el botón a los controles
+                             * del formulario recibido.
+                             */
+                            formulario.Controls.Add(
+                                btnVolver
+                            );
+
+
+                            /*
+                             * BringToFront evita que otro control,
+                             * como un Panel, quede visualmente
+                             * por encima del botón.
+                             */
+                            btnVolver.BringToFront();
+
+
+                            /*
+                             * Conservamos ShowDialog().
+                             *
+                             * Esto significa que solamente puede trabajarse
+                             * con un módulo a la vez.
+                             */
+                            formulario.ShowDialog();
+                       }
+            
 
 
         // ---------------------------------------------------------
