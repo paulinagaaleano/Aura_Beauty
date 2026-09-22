@@ -186,27 +186,75 @@ namespace Negocio
 
 
         /// <summary>
-        /// Elimina un usuario según su identificador.
+        /// Realiza la baja lógica de un usuario.
+        ///
+        /// Antes de solicitar la baja a la Capa de Datos,
+        /// verifica que la operación no deje al sistema
+        /// sin administradores activos.
         /// </summary>
         /// <param name="idUsuario">
-        /// Id del usuario a eliminar.
+        /// Identificador del usuario que se desea dar de baja.
         /// </param>
         /// <returns>
-        /// true si se eliminó correctamente.
+        /// true si la baja lógica fue realizada correctamente.
         /// </returns>
         public bool Eliminar(int idUsuario)
         {
             /*
-             * Un id válido debe ser mayor que cero.
+             * Primero comprobamos que el identificador
+             * recibido sea válido.
              */
             if (idUsuario <= 0)
             {
                 throw new ArgumentException(
-                    "Debe seleccionar un usuario válido para eliminar."
+                    "Debe seleccionar un usuario válido para dar de baja."
                 );
             }
 
 
+            /*
+             * Consultamos si el usuario seleccionado
+             * es un Administrador activo.
+             */
+            bool esAdministrador =
+                obj_cd_usuario.EsAdministradorActivo(
+                    idUsuario
+                );
+
+
+            /*
+             * Esta regla solamente debe comprobarse
+             * cuando el usuario que se quiere dar
+             * de baja es Administrador.
+             */
+            if (esAdministrador)
+            {
+                int cantidadAdministradores =
+                    obj_cd_usuario.ContarAdministradoresActivos();
+
+
+                /*
+                 * Si solamente queda un administrador,
+                 * no permitimos su baja.
+                 *
+                 * De esta manera garantizamos que
+                 * el sistema siempre conserve al menos
+                 * un Administrador activo.
+                 */
+                if (cantidadAdministradores <= 1)
+                {
+                    throw new ArgumentException(
+                        "No es posible dar de baja al último administrador activo del sistema."
+                    );
+                }
+            }
+
+
+            /*
+             * Si todas las reglas se cumplen,
+             * solicitamos a la Capa de Datos
+             * que realice la baja lógica.
+             */
             return obj_cd_usuario.Eliminar(
                 idUsuario
             );

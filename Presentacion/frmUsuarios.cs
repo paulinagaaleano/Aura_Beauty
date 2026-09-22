@@ -73,6 +73,17 @@ namespace Aura_Beauty
 
 
         /// <summary>
+        /// Usuario que actualmente tiene iniciada la sesión.
+        ///
+        /// Se conserva para poder aplicar reglas de seguridad,
+        /// por ejemplo impedir que un administrador
+        /// se dé de baja a sí mismo.
+        /// </summary>
+        private readonly Usuario usuarioActual;
+
+
+
+        /// <summary>
         /// Mantiene en memoria la lista de usuarios
         /// obtenida desde la Capa de Negocio.
         ///
@@ -155,11 +166,17 @@ namespace Aura_Beauty
 
         /// <summary>
         /// Constructor del formulario.
+        /// 
+        /// /// Recibe el usuario que tiene actualmente iniciada la sesión.
+        /// </summary>
+        /// <param name="usuario">
+        /// Usuario autenticado que abrió este formulario.
+        /// </param>
         ///
         /// Se ejecuta cuando se crea una instancia
         /// de frmUsuarios.
         /// </summary>
-        public frmUsuarios()
+        public frmUsuarios(Usuario usuario)
         {
             /*
              * InitializeComponent()
@@ -170,6 +187,14 @@ namespace Aura_Beauty
              * definida en frmUsuarios.Designer.cs.
              */
             InitializeComponent();
+
+            /*
+             * Guardamos el usuario que inició sesión.
+             *
+             * De esta manera el formulario puede saber
+             * quién está utilizando actualmente el sistema.
+             */
+            usuarioActual = usuario;
 
 
             // Configuramos la ventana.
@@ -1333,12 +1358,12 @@ namespace Aura_Beauty
         }
 
 
-        // ============================================================
-        // BOTÓN ELIMINAR
-        // ============================================================
-
         /// <summary>
-        /// Elimina el usuario seleccionado.
+        /// Realiza la baja lógica del usuario seleccionado.
+        ///
+        /// Antes de realizar la operación comprueba
+        /// que el administrador no intente darse
+        /// de baja a sí mismo.
         /// </summary>
         private void btnEliminar_Click(
             object sender,
@@ -1357,20 +1382,39 @@ namespace Aura_Beauty
             }
 
 
+            /*
+             * Comprobamos si el usuario seleccionado
+             * es el mismo usuario que tiene iniciada
+             * la sesión actual.
+             *
+             * Comparamos los identificadores porque
+             * cada usuario tiene un IdUsuario único.
+             */
+            if (usuarioActual != null &&
+                idUsuarioSeleccionado == usuarioActual.IdUsuario)
+            {
+                MessageBox.Show(
+                    "No puede dar de baja su propio usuario mientras tiene una sesión iniciada.",
+                    "Aura Beauty",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+
+                return;
+            }
+
+
             DialogResult respuesta =
                 MessageBox.Show(
-                    "¿Está seguro de eliminar este usuario?\n\n" +
-                    "Esta operación quitará su acceso al sistema.",
-                    "Confirmar eliminación",
+                    "¿Está seguro de dar de baja este usuario?\n\n" +
+                    "El usuario perderá el acceso al sistema, " +
+                    "pero se conservará su historial de operaciones.",
+                    "Confirmar baja de usuario",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question
                 );
 
 
-            /*
-             * Si la persona selecciona No,
-             * cancelamos la operación.
-             */
             if (respuesta != DialogResult.Yes)
             {
                 return;
@@ -1388,12 +1432,11 @@ namespace Aura_Beauty
                 if (eliminado)
                 {
                     MessageBox.Show(
-                        "Usuario eliminado correctamente.",
+                        "Usuario dado de baja correctamente.",
                         "Aura Beauty",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information
                     );
-
 
                     CargarUsuarios();
 
@@ -1402,7 +1445,7 @@ namespace Aura_Beauty
                 else
                 {
                     MessageBox.Show(
-                        "No se encontró el usuario seleccionado.",
+                        "No se encontró el usuario seleccionado o ya se encontraba dado de baja.",
                         "Aura Beauty",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Warning
@@ -1412,7 +1455,7 @@ namespace Aura_Beauty
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    "No fue posible eliminar el usuario.\n\n" +
+                    "No fue posible dar de baja el usuario.\n\n" +
                     ex.Message,
                     "Aura Beauty",
                     MessageBoxButtons.OK,
@@ -1420,6 +1463,7 @@ namespace Aura_Beauty
                 );
             }
         }
+
 
 
         // ============================================================

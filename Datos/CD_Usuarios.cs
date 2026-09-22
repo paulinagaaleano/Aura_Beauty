@@ -339,6 +339,108 @@ namespace Datos
             }
         }
 
+        /// <summary>
+        /// Comprueba si un usuario activo pertenece
+        /// al rol Administrador.
+        /// </summary>
+        /// <param name="idUsuario">
+        /// Identificador del usuario que se desea comprobar.
+        /// </param>
+        /// <returns>
+        /// true si el usuario está activo y es Administrador.
+        /// false en caso contrario.
+        /// </returns>
+        public bool EsAdministradorActivo(int idUsuario)
+        {
+            using (SqlConnection oconexion =
+                   new SqlConnection(Conexion.cadena))
+            {
+                try
+                {
+                    /*
+                     * id_rol = 1 corresponde al rol Administrador.
+                     *
+                     * También verificamos deleted_at IS NULL
+                     * porque solamente nos interesan
+                     * administradores que estén activos.
+                     */
+                    string query = @"
+                SELECT COUNT(*)
+                FROM Usuario
+                WHERE id_usuario = @id_usuario
+                  AND id_rol = 1
+                  AND deleted_at IS NULL";
+
+                    SqlCommand cmd =
+                        new SqlCommand(query, oconexion);
+
+                    cmd.CommandType =
+                        CommandType.Text;
+
+                    cmd.Parameters.AddWithValue(
+                        "@id_usuario",
+                        idUsuario
+                    );
+
+                    oconexion.Open();
+
+                    int cantidad =
+                        Convert.ToInt32(
+                            cmd.ExecuteScalar()
+                        );
+
+                    return cantidad > 0;
+                }
+                catch (Exception)
+                {
+                    throw;
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Cuenta cuántos administradores activos
+        /// existen actualmente en el sistema.
+        /// </summary>
+        /// <returns>
+        /// Cantidad de usuarios activos que poseen
+        /// el rol Administrador.
+        /// </returns>
+        public int ContarAdministradoresActivos()
+        {
+            using (SqlConnection oconexion =
+                   new SqlConnection(Conexion.cadena))
+            {
+                try
+                {
+                    string query = @"
+                SELECT COUNT(*)
+                FROM Usuario
+                WHERE id_rol = 1
+                  AND deleted_at IS NULL";
+
+                    SqlCommand cmd =
+                        new SqlCommand(query, oconexion);
+
+                    cmd.CommandType =
+                        CommandType.Text;
+
+                    oconexion.Open();
+
+                    int cantidad =
+                        Convert.ToInt32(
+                            cmd.ExecuteScalar()
+                        );
+
+                    return cantidad;
+                }
+                catch (Exception)
+                {
+                    throw;
+                }
+            }
+        }
 
         /// <summary>
         /// Realiza la baja lógica de un usuario.

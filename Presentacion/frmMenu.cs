@@ -784,7 +784,7 @@ namespace Aura_Beauty
                              * crear un nuevo objeto basado en la clase frmUsuarios.
                              */
                             frmUsuarios formularioUsuarios =
-                                new frmUsuarios();
+                                new frmUsuarios(usuarioActual);
 
 
                             /*
