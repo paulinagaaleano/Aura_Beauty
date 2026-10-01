@@ -23,6 +23,8 @@ namespace Negocio
         private readonly CD_SolicitudStock cdSolicitudStock =
             new CD_SolicitudStock();
 
+        private readonly CD_Usuario cdUsuario =
+            new CD_Usuario();
 
         /// <summary>
         /// Registra una solicitud de modificación de stock
@@ -165,6 +167,9 @@ namespace Negocio
         /// La capa de Negocio verifica que los identificadores
         /// recibidos sean válidos y luego delega la operación
         /// a la capa de Datos.
+        /// 
+        /// Solamente un usuario activo con rol Administrador
+        /// puede autorizar la modificación.
         /// </summary>
         public bool Aprobar(
             int idSolicitud,
@@ -185,6 +190,24 @@ namespace Negocio
                 );
             }
 
+            /*
+             * Regla de negocio:
+             *
+             * solamente un Administrador ACTIVO
+             * puede aprobar una solicitud de stock.
+             *
+             * Reutilizamos el método que ya existe
+             * en CD_Usuario.
+             */
+            if (!cdUsuario.EsAdministradorActivo(
+                    idUsuarioAutorizador))
+            {
+                throw new Exception(
+                    "Solamente un Administrador activo " +
+                    "puede aprobar solicitudes de stock."
+                );
+            }
+
             return cdSolicitudStock.Aprobar(
                 idSolicitud,
                 idUsuarioAutorizador
@@ -197,6 +220,9 @@ namespace Negocio
         ///
         /// Rechazar la solicitud no modifica las existencias
         /// del producto.
+        /// 
+        /// Solamente un usuario activo con rol Administrador
+        /// puede rechazarla.
         /// </summary>
         public bool Rechazar(
             int idSolicitud,
@@ -216,6 +242,20 @@ namespace Negocio
                     "No se pudo identificar al Administrador."
                 );
             }
+
+            /*
+             * Aplicamos la misma regla de autorización
+             * utilizada para aprobar.
+             */
+            if (!cdUsuario.EsAdministradorActivo(
+                    idUsuarioAutorizador))
+            {
+                throw new Exception(
+                    "Solamente un Administrador activo " +
+                    "puede rechazar solicitudes de stock."
+                );
+            }
+
 
             return cdSolicitudStock.Rechazar(
                 idSolicitud,

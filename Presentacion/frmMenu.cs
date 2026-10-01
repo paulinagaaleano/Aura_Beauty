@@ -1,4 +1,5 @@
 ﻿using Entidades;
+using Presentacion;
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -502,8 +503,8 @@ namespace Aura_Beauty
                     );
 
                     CrearBotonModulo(
-                        "Consulta de Stock",
-                        3,
+                        "Solicitudes de Stock",
+                        9,
                         60,
                         210
                     );
@@ -890,6 +891,18 @@ namespace Aura_Beauty
                                    new frmCierreCaja(usuarioActual))
                             {
                                 AbrirFormularioConVolver(formularioCierreCaja);
+                            }
+
+                            break;
+
+                        case 9:
+
+                            using (frmSolicitudesStock formularioSolicitudes =
+                                   new frmSolicitudesStock(usuarioActual))
+                            {
+                                AbrirFormularioConVolver(
+                                    formularioSolicitudes
+                                );
                             }
 
                             break;

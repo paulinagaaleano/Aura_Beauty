@@ -195,23 +195,28 @@ namespace Datos
                              * Producto relacionado.
                              */
                             solicitud.oProducto =
-                                new Producto
-                                {
-                                    IdProducto =
-                                        Convert.ToInt32(
-                                            dr["id_producto"]
-                                        ),
+                                 new Producto
+                                 {
+                                     IdProducto =
+                                         Convert.ToInt32(
+                                             dr["id_producto"]
+                                         ),
 
-                                    Nombre =
-                                        dr["producto"]
-                                            .ToString()
-                                };
+                                     Nombre =
+                                         dr["producto"]
+                                             .ToString(),
 
-
-                            solicitud.IdUsuarioSolicitante =
-                                Convert.ToInt32(
-                                    dr["id_usuario_solicitante"]
-                                );
+                                     /*
+                                      * Stock actual del producto al momento
+                                      * de realizar la consulta.
+                                      *
+                                      * No es la cantidad solicitada.
+                                      */
+                                     Stock =
+                                         Convert.ToInt32(
+                                             dr["stock_actual"]
+                                         )
+                                 };
 
 
                             /*
