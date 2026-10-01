@@ -304,5 +304,176 @@ namespace Datos
                 }
             }
         }
+
+        /// <summary>
+        /// Aprueba una solicitud de modificación de stock.
+        ///
+        /// La operación real se realiza en SQL Server mediante
+        /// SP_SolicitudStock_Aprobar.
+        ///
+        /// Si se aprueba:
+        /// - modifica Producto.stock;
+        /// - cambia la solicitud a APROBADA;
+        /// - registra al Administrador que autorizó;
+        /// - registra la fecha de resolución.
+        ///
+        /// Todo esto se realiza de forma transaccional
+        /// dentro del procedimiento almacenado.
+        /// </summary>
+        /// <param name="idSolicitud">
+        /// Identificador de la solicitud que se desea aprobar.
+        /// </param>
+        /// <param name="idUsuarioAutorizador">
+        /// Identificador del Administrador que autoriza.
+        /// </param>
+        /// <returns>
+        /// true si la operación fue realizada correctamente.
+        /// </returns>
+        public bool Aprobar(
+            int idSolicitud,
+            int idUsuarioAutorizador
+        )
+        {
+            using (SqlConnection conexion =
+                   new SqlConnection(Conexion.cadena))
+            {
+                try
+                {
+                    /*
+                     * Indicamos el nombre del procedimiento
+                     * almacenado que realizará la aprobación.
+                     */
+                    SqlCommand cmd =
+                        new SqlCommand(
+                            "SP_SolicitudStock_Aprobar",
+                            conexion
+                        );
+
+
+                    /*
+                     * Indicamos que no estamos enviando
+                     * una consulta SQL escrita en C#,
+                     * sino el nombre de un Stored Procedure.
+                     */
+                    cmd.CommandType =
+                        CommandType.StoredProcedure;
+
+
+                    /*
+                     * Enviamos el ID de la solicitud
+                     * que el Administrador decidió aprobar.
+                     */
+                    cmd.Parameters.AddWithValue(
+                        "@id_solicitud",
+                        idSolicitud
+                    );
+
+
+                    /*
+                     * También enviamos el ID del Administrador
+                     * que está realizando la autorización.
+                     */
+                    cmd.Parameters.AddWithValue(
+                        "@id_usuario_autorizador",
+                        idUsuarioAutorizador
+                    );
+
+
+                    conexion.Open();
+
+
+                    /*
+                     * El Stored Procedure devuelve:
+                     *
+                     * SELECT CAST(1 AS INT) AS Resultado
+                     *
+                     * ExecuteScalar recupera ese único valor.
+                     */
+                    object resultado =
+                        cmd.ExecuteScalar();
+
+
+                    return Convert.ToInt32(resultado) == 1;
+                }
+                catch (Exception)
+                {
+                    /*
+                     * Si SQL Server genera un error
+                     * —por ejemplo, stock insuficiente—
+                     * lo volvemos a lanzar para que llegue
+                     * hasta las capas superiores.
+                     */
+                    throw;
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Rechaza una solicitud de modificación de stock.
+        ///
+        /// Rechazar una solicitud NO modifica Producto.stock.
+        ///
+        /// Solamente cambia la solicitud a RECHAZADA
+        /// y registra quién y cuándo la resolvió.
+        /// </summary>
+        /// <param name="idSolicitud">
+        /// Identificador de la solicitud que será rechazada.
+        /// </param>
+        /// <param name="idUsuarioAutorizador">
+        /// Identificador del Administrador que la rechaza.
+        /// </param>
+        /// <returns>
+        /// true si la operación fue realizada correctamente.
+        /// </returns>
+        public bool Rechazar(
+            int idSolicitud,
+            int idUsuarioAutorizador
+        )
+        {
+            using (SqlConnection conexion =
+                   new SqlConnection(Conexion.cadena))
+            {
+                try
+                {
+                    SqlCommand cmd =
+                        new SqlCommand(
+                            "SP_SolicitudStock_Rechazar",
+                            conexion
+                        );
+
+
+                    cmd.CommandType =
+                        CommandType.StoredProcedure;
+
+
+                    cmd.Parameters.AddWithValue(
+                        "@id_solicitud",
+                        idSolicitud
+                    );
+
+
+                    cmd.Parameters.AddWithValue(
+                        "@id_usuario_autorizador",
+                        idUsuarioAutorizador
+                    );
+
+
+                    conexion.Open();
+
+
+                    object resultado =
+                        cmd.ExecuteScalar();
+
+
+                    return Convert.ToInt32(resultado) == 1;
+                }
+                catch (Exception)
+                {
+                    throw;
+                }
+            }
+        }
+
     }
 }

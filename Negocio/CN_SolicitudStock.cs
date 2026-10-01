@@ -157,5 +157,70 @@ namespace Negocio
         {
             return cdSolicitudStock.ListarPendientes();
         }
+
+
+        /// <summary>
+        /// Aprueba una solicitud de modificación de stock.
+        ///
+        /// La capa de Negocio verifica que los identificadores
+        /// recibidos sean válidos y luego delega la operación
+        /// a la capa de Datos.
+        /// </summary>
+        public bool Aprobar(
+            int idSolicitud,
+            int idUsuarioAutorizador
+        )
+        {
+            if (idSolicitud <= 0)
+            {
+                throw new ArgumentException(
+                    "Debe seleccionar una solicitud válida."
+                );
+            }
+
+            if (idUsuarioAutorizador <= 0)
+            {
+                throw new ArgumentException(
+                    "No se pudo identificar al Administrador."
+                );
+            }
+
+            return cdSolicitudStock.Aprobar(
+                idSolicitud,
+                idUsuarioAutorizador
+            );
+        }
+
+
+        /// <summary>
+        /// Rechaza una solicitud de modificación de stock.
+        ///
+        /// Rechazar la solicitud no modifica las existencias
+        /// del producto.
+        /// </summary>
+        public bool Rechazar(
+            int idSolicitud,
+            int idUsuarioAutorizador
+        )
+        {
+            if (idSolicitud <= 0)
+            {
+                throw new ArgumentException(
+                    "Debe seleccionar una solicitud válida."
+                );
+            }
+
+            if (idUsuarioAutorizador <= 0)
+            {
+                throw new ArgumentException(
+                    "No se pudo identificar al Administrador."
+                );
+            }
+
+            return cdSolicitudStock.Rechazar(
+                idSolicitud,
+                idUsuarioAutorizador
+            );
+        }
     }
 }
