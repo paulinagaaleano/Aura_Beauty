@@ -41,6 +41,9 @@ namespace Aura_Beauty
         /// </summary>
         private readonly CN_Stock cnStock = new CN_Stock();
 
+        private readonly CN_SolicitudStock cnSolicitudStock =
+            new CN_SolicitudStock();
+
         /// <summary>
         /// Se utiliza para obtener las categorías activas
         /// que aparecerán en el filtro.
@@ -108,6 +111,12 @@ namespace Aura_Beauty
         private TextBox txtBuscar;
         private TextBox txtCantidad;
 
+        /// <summary>
+        /// Permite ingresar la justificación obligatoria
+        /// de la solicitud de modificación de stock.
+        /// </summary>
+        private TextBox txtMotivo;
+
         private ComboBox cboCategoria;
 
         private Label lblProductoSeleccionado;
@@ -170,7 +179,7 @@ namespace Aura_Beauty
             StartPosition = FormStartPosition.CenterScreen;
 
             Width = 1100;
-            Height = 680;
+            Height = 760;
 
             BackColor = colorFondo;
 
@@ -249,7 +258,7 @@ namespace Aura_Beauty
                 new Point(25, 160);
 
             panelOperacion.Size =
-                new Size(350, 455);
+                new Size(350, 525);
 
             panelOperacion.BackColor =
                 Color.White;
@@ -386,13 +395,49 @@ namespace Aura_Beauty
                 txtCantidad
             );
 
+            // -----------------------------------------------------
+            // MOTIVO / JUSTIFICACIÓN
+            // -----------------------------------------------------
 
-            // Botón agregar
+            Label lblMotivo =
+                CrearEtiqueta(
+                    "Motivo / justificación",
+                    25,
+                    330
+                );
+
+            panelOperacion.Controls.Add(
+                lblMotivo
+            );
+
+
+            txtMotivo =
+                CrearCajaTexto(
+                    25,
+                    360,
+                    300
+                );
+
+            /*
+             * La base de datos permite un máximo
+             * de 250 caracteres para el motivo.
+             */
+            txtMotivo.MaxLength = 250;
+
+            panelOperacion.Controls.Add(
+                txtMotivo
+            );
+
+
+            // -----------------------------------------------------
+            // SOLICITAR INGRESO
+            // -----------------------------------------------------
+
             btnAgregar =
                 CrearBoton(
-                    "AGREGAR STOCK",
+                    "SOLICITAR INGRESO",
                     25,
-                    345,
+                    410,
                     140
                 );
 
@@ -404,12 +449,15 @@ namespace Aura_Beauty
             );
 
 
-            // Botón quitar
+            // -----------------------------------------------------
+            // SOLICITAR EGRESO
+            // -----------------------------------------------------
+
             btnQuitar =
                 CrearBoton(
-                    "QUITAR STOCK",
+                    "SOLICITAR EGRESO",
                     185,
-                    345,
+                    410,
                     140
                 );
 
@@ -421,12 +469,15 @@ namespace Aura_Beauty
             );
 
 
-            // Limpiar
+            // -----------------------------------------------------
+            // LIMPIAR
+            // -----------------------------------------------------
+
             btnLimpiar =
                 CrearBotonSecundario(
                     "LIMPIAR",
                     25,
-                    400,
+                    465,
                     300
                 );
 
@@ -1075,115 +1126,53 @@ namespace Aura_Beauty
         }
 
 
-        // =========================================================
-        // AGREGAR STOCK
-        // =========================================================
-
         /// <summary>
-        /// Agrega la cantidad ingresada al stock existente.
+        /// Solicita un INGRESO de unidades al stock.
+        ///
+        /// No modifica directamente el stock.
+        /// Solamente registra una solicitud pendiente.
         /// </summary>
         private void btnAgregar_Click(
             object sender,
             EventArgs e
         )
         {
-            try
-            {
-                if (idProductoSeleccionado == 0)
-                {
-                    MessageBox.Show(
-                        "Seleccioná primero un producto.",
-                        "Aura Beauty",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning
-                    );
-
-                    return;
-                }
-
-
-                if (
-                    !int.TryParse(
-                        txtCantidad.Text,
-                        out int cantidad
-                    )
-                )
-                {
-                    MessageBox.Show(
-                        "Ingresá una cantidad válida.",
-                        "Aura Beauty",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning
-                    );
-
-                    txtCantidad.Focus();
-
-                    return;
-                }
-
-
-                bool resultado =
-                    cnStock.AgregarStock(
-                        idProductoSeleccionado,
-                        stockActualSeleccionado,
-                        cantidad
-                    );
-
-
-                if (!resultado)
-                {
-                    MessageBox.Show(
-                        "No fue posible actualizar el stock.",
-                        "Aura Beauty",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning
-                    );
-
-                    return;
-                }
-
-
-                MessageBox.Show(
-                    "Stock agregado correctamente.",
-                    "Aura Beauty",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information
-                );
-
-
-                CargarProductos();
-
-                LimpiarSeleccion();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    ex.Message,
-                    "Aura Beauty",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
-            }
+            RegistrarSolicitud("INGRESO");
         }
 
 
-        // =========================================================
-        // QUITAR STOCK
-        // =========================================================
-
         /// <summary>
-        /// Descuenta la cantidad indicada del stock actual.
+        /// Solicita un EGRESO de unidades del stock.
         ///
-        /// La capa de Negocio verifica que no pueda
-        /// generarse un stock negativo.
+        /// No modifica directamente el stock.
+        /// Solamente registra una solicitud pendiente.
         /// </summary>
         private void btnQuitar_Click(
             object sender,
             EventArgs e
         )
         {
+            RegistrarSolicitud("EGRESO");
+        }
+
+
+        /// <summary>
+        /// Registra una solicitud justificada de modificación
+        /// de stock realizada por el Repositor.
+        ///
+        /// La solicitud queda en estado PENDIENTE.
+        /// Este método NO modifica Producto.stock.
+        /// </summary>
+        private void RegistrarSolicitud(
+            string tipoMovimiento
+        )
+        {
             try
             {
+                /*
+                 * Verificamos que el Repositor haya
+                 * seleccionado un producto de la grilla.
+                 */
                 if (idProductoSeleccionado == 0)
                 {
                     MessageBox.Show(
@@ -1197,12 +1186,17 @@ namespace Aura_Beauty
                 }
 
 
-                if (
-                    !int.TryParse(
+                /*
+                 * TryParse intenta convertir el texto
+                 * ingresado a un número entero.
+                 *
+                 * Si no puede hacerlo, devuelve false.
+                 */
+                int cantidad;
+
+                if (!int.TryParse(
                         txtCantidad.Text,
-                        out int cantidad
-                    )
-                )
+                        out cantidad))
                 {
                     MessageBox.Show(
                         "Ingresá una cantidad válida.",
@@ -1217,18 +1211,55 @@ namespace Aura_Beauty
                 }
 
 
-                bool resultado =
-                    cnStock.QuitarStock(
-                        idProductoSeleccionado,
-                        stockActualSeleccionado,
-                        cantidad
+                /*
+                 * Construimos el objeto SolicitudStock
+                 * que transportará los datos entre capas.
+                 */
+                SolicitudStock solicitud =
+                    new SolicitudStock
+                    {
+                        IdProducto =
+                            idProductoSeleccionado,
+
+                        /*
+                         * El usuario solicitante NO se elige
+                         * manualmente.
+                         *
+                         * Utilizamos directamente al usuario
+                         * que inició sesión.
+                         */
+                        IdUsuarioSolicitante =
+                            usuarioActual.IdUsuario,
+
+                        TipoMovimiento =
+                            tipoMovimiento,
+
+                        Cantidad =
+                            cantidad,
+
+                        Motivo =
+                            txtMotivo.Text
+                    };
+
+
+                /*
+                 * La solicitud pasa a Negocio.
+                 *
+                 * Negocio valida los datos y después
+                 * Datos ejecuta:
+                 *
+                 * SP_SolicitudStock_Registrar
+                 */
+                bool registrado =
+                    cnSolicitudStock.Registrar(
+                        solicitud
                     );
 
 
-                if (!resultado)
+                if (!registrado)
                 {
                     MessageBox.Show(
-                        "No fue posible actualizar el stock.",
+                        "No fue posible registrar la solicitud.",
                         "Aura Beauty",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Warning
@@ -1239,15 +1270,19 @@ namespace Aura_Beauty
 
 
                 MessageBox.Show(
-                    "Stock actualizado correctamente.",
+                    "Solicitud registrada correctamente.\n\n" +
+                    "La modificación del stock queda " +
+                    "pendiente de autorización.",
                     "Aura Beauty",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information
                 );
 
 
-                CargarProductos();
-
+                /*
+                 * Limpiamos la selección para preparar
+                 * una nueva solicitud.
+                 */
                 LimpiarSeleccion();
             }
             catch (Exception ex)
@@ -1356,6 +1391,8 @@ namespace Aura_Beauty
             lblStockActual.Text = "-";
 
             txtCantidad.Clear();
+
+            txtMotivo.Clear();
 
             dgvStock.ClearSelection();
         }
