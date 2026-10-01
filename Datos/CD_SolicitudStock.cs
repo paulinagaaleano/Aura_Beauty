@@ -13,17 +13,23 @@ namespace Datos
     /// Capa de Datos correspondiente a las solicitudes
     /// de modificación de stock.
     ///
-    /// Su responsabilidad es comunicarse con SQL Server.
-    /// No contiene controles visuales ni decisiones de interfaz.
+    /// Esta clase se comunica con SQL Server mediante
+    /// procedimientos almacenados.
+    ///
+    /// La lógica SQL se encuentra en la base de datos
+    /// y esta clase se encarga de enviar parámetros,
+    /// ejecutar los procedimientos y transformar
+    /// los resultados en objetos de Entidades.
     /// </summary>
     public class CD_SolicitudStock
     {
         /// <summary>
-        /// Registra una nueva solicitud de modificación de stock.
+        /// Registra una nueva solicitud de modificación
+        /// de stock utilizando el procedimiento almacenado
+        /// SP_SolicitudStock_Registrar.
         ///
-        /// IMPORTANTE:
-        /// Este método solamente crea la solicitud.
-        /// NO modifica el stock del producto.
+        /// Registrar una solicitud NO modifica
+        /// el stock del producto.
         /// </summary>
         public bool Registrar(SolicitudStock solicitud)
         {
@@ -32,29 +38,32 @@ namespace Datos
             {
                 try
                 {
-                    string query = @"
-                        INSERT INTO SolicitudStock
-                        (
-                            id_producto,
-                            id_usuario_solicitante,
-                            tipo_movimiento,
-                            cantidad,
-                            motivo
-                        )
-                        VALUES
-                        (
-                            @id_producto,
-                            @id_usuario_solicitante,
-                            @tipo_movimiento,
-                            @cantidad,
-                            @motivo
-                        )";
-
+                    /*
+                     * En lugar de escribir un INSERT acá,
+                     * indicamos el nombre del procedimiento
+                     * almacenado que queremos ejecutar.
+                     */
                     SqlCommand cmd =
-                        new SqlCommand(query, conexion);
+                        new SqlCommand(
+                            "SP_SolicitudStock_Registrar",
+                            conexion
+                        );
 
-                    cmd.CommandType = CommandType.Text;
 
+                    /*
+                     * StoredProcedure indica que el texto
+                     * anterior NO es una consulta SQL,
+                     * sino el nombre de un procedimiento
+                     * almacenado de SQL Server.
+                     */
+                    cmd.CommandType =
+                        CommandType.StoredProcedure;
+
+
+                    /*
+                     * Enviamos los valores que necesita
+                     * el procedimiento almacenado.
+                     */
                     cmd.Parameters.AddWithValue(
                         "@id_producto",
                         solicitud.IdProducto
@@ -80,15 +89,35 @@ namespace Datos
                         solicitud.Motivo
                     );
 
+
+                    /*
+                     * Abrimos la conexión con SQL Server.
+                     */
                     conexion.Open();
 
-                    int filasAfectadas =
-                        cmd.ExecuteNonQuery();
 
-                    return filasAfectadas > 0;
+                    /*
+                      * ExecuteScalar ejecuta el procedimiento
+                      * y recupera el primer valor devuelto.
+                      *
+                      * Nuestro procedimiento devuelve:
+                      * SELECT CAST(1 AS INT) AS Resultado
+                      *
+                      * Por lo tanto, si recibimos 1 significa
+                      * que la solicitud fue registrada.
+                      */
+                    object resultado =
+                        cmd.ExecuteScalar();
+
+                    return Convert.ToInt32(resultado) == 1;
                 }
                 catch (Exception)
                 {
+                    /*
+                     * throw vuelve a lanzar la excepción
+                     * para que pueda ser tratada por
+                     * las capas superiores.
+                     */
                     throw;
                 }
             }
@@ -96,70 +125,75 @@ namespace Datos
 
 
         /// <summary>
-        /// Obtiene todas las solicitudes que todavía
-        /// están pendientes de resolución.
+        /// Obtiene las solicitudes que se encuentran
+        /// en estado PENDIENTE.
         ///
-        /// Incluye información del producto y
-        /// del usuario que realizó la solicitud.
+        /// Utiliza el procedimiento almacenado
+        /// SP_SolicitudStock_ListarPendientes.
         /// </summary>
         public List<SolicitudStock> ListarPendientes()
         {
             List<SolicitudStock> lista =
                 new List<SolicitudStock>();
 
+
             using (SqlConnection conexion =
                    new SqlConnection(Conexion.cadena))
             {
                 try
                 {
-                    string query = @"
-                        SELECT
-                            ss.id_solicitud,
-                            ss.id_producto,
-                            p.nombre AS producto,
-                            ss.id_usuario_solicitante,
-                            u.nombre AS nombre_solicitante,
-                            u.apellido AS apellido_solicitante,
-                            ss.tipo_movimiento,
-                            ss.cantidad,
-                            ss.motivo,
-                            ss.estado,
-                            ss.fecha_solicitud,
-                            ss.id_usuario_autorizador,
-                            ss.fecha_resolucion
-                        FROM SolicitudStock ss
-                        INNER JOIN Producto p
-                            ON ss.id_producto = p.Id_producto
-                        INNER JOIN Usuario u
-                            ON ss.id_usuario_solicitante = u.id_usuario
-                        WHERE ss.estado = 'PENDIENTE'
-                        ORDER BY ss.fecha_solicitud DESC";
-
+                    /*
+                     * Indicamos el procedimiento almacenado
+                     * que devolverá las solicitudes.
+                     */
                     SqlCommand cmd =
-                        new SqlCommand(query, conexion);
+                        new SqlCommand(
+                            "SP_SolicitudStock_ListarPendientes",
+                            conexion
+                        );
 
-                    cmd.CommandType = CommandType.Text;
+
+                    cmd.CommandType =
+                        CommandType.StoredProcedure;
+
 
                     conexion.Open();
 
+
+                    /*
+                     * ExecuteReader se utiliza porque
+                     * esperamos recibir varias filas
+                     * desde SQL Server.
+                     */
                     using (SqlDataReader dr =
                            cmd.ExecuteReader())
                     {
+                        /*
+                         * Read avanza fila por fila
+                         * sobre el resultado.
+                         */
                         while (dr.Read())
                         {
                             SolicitudStock solicitud =
                                 new SolicitudStock();
+
 
                             solicitud.IdSolicitud =
                                 Convert.ToInt32(
                                     dr["id_solicitud"]
                                 );
 
+
                             solicitud.IdProducto =
                                 Convert.ToInt32(
                                     dr["id_producto"]
                                 );
 
+
+                            /*
+                             * Creamos también el objeto
+                             * Producto relacionado.
+                             */
                             solicitud.oProducto =
                                 new Producto
                                 {
@@ -169,14 +203,21 @@ namespace Datos
                                         ),
 
                                     Nombre =
-                                        dr["producto"].ToString()
+                                        dr["producto"]
+                                            .ToString()
                                 };
+
 
                             solicitud.IdUsuarioSolicitante =
                                 Convert.ToInt32(
                                     dr["id_usuario_solicitante"]
                                 );
 
+
+                            /*
+                             * Construimos el usuario
+                             * que realizó la solicitud.
+                             */
                             solicitud.oUsuarioSolicitante =
                                 new Usuario
                                 {
@@ -194,26 +235,39 @@ namespace Datos
                                             .ToString()
                                 };
 
+
                             solicitud.TipoMovimiento =
                                 dr["tipo_movimiento"]
                                     .ToString();
+
 
                             solicitud.Cantidad =
                                 Convert.ToInt32(
                                     dr["cantidad"]
                                 );
 
+
                             solicitud.Motivo =
-                                dr["motivo"].ToString();
+                                dr["motivo"]
+                                    .ToString();
+
 
                             solicitud.Estado =
-                                dr["estado"].ToString();
+                                dr["estado"]
+                                    .ToString();
+
 
                             solicitud.FechaSolicitud =
                                 Convert.ToDateTime(
                                     dr["fecha_solicitud"]
                                 );
 
+
+                            /*
+                             * El autorizador puede ser NULL
+                             * mientras la solicitud continúe
+                             * pendiente.
+                             */
                             solicitud.IdUsuarioAutorizador =
                                 dr["id_usuario_autorizador"]
                                     == DBNull.Value
@@ -222,6 +276,12 @@ namespace Datos
                                     dr["id_usuario_autorizador"]
                                 );
 
+
+                            /*
+                             * La fecha de resolución también
+                             * es NULL mientras nadie haya
+                             * aprobado o rechazado.
+                             */
                             solicitud.FechaResolucion =
                                 dr["fecha_resolucion"]
                                     == DBNull.Value
@@ -230,9 +290,11 @@ namespace Datos
                                     dr["fecha_resolucion"]
                                 );
 
+
                             lista.Add(solicitud);
                         }
                     }
+
 
                     return lista;
                 }
