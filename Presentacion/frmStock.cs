@@ -20,13 +20,17 @@ namespace Aura_Beauty
     /// - Consultar el stock actual.
     /// - Buscar productos por nombre.
     /// - Filtrar productos por categoría.
-    /// - Agregar unidades al stock.
-    /// - Quitar unidades del stock.
+    /// - Solicitar ingresos de unidades al stock.
+    /// - Solicitar egresos de unidades del stock.
+    /// - Registrar el motivo que justifica cada solicitud.
     /// - Identificar visualmente productos con stock bajo.
+    /// 
+    /// Las solicitudes quedan pendientes hasta que un
+    /// Administrador las aprueba o rechaza.
     ///
-    /// Este formulario NO modifica nombre, precio, descripción
-    /// ni categoría del producto. Esas operaciones corresponden
-    /// al módulo Catálogo de Productos.
+    /// Este formulario NO modifica directamente el stock.
+    /// La modificación se realiza únicamente cuando una
+    /// solicitud es aprobada.
     /// </summary>
     public partial class frmStock : Form
 
@@ -36,11 +40,16 @@ namespace Aura_Beauty
         // =========================================================
 
         /// <summary>
-        /// Objeto de la capa de Negocio encargado
-        /// de las operaciones relacionadas con stock.
+        /// Objeto de la capa de Negocio utilizado
+        /// para consultar el stock actual de los productos.
         /// </summary>
         private readonly CN_Stock cnStock = new CN_Stock();
 
+
+        /// <summary>
+        /// Objeto de la capa de Negocio encargado de registrar
+        /// las solicitudes de ingreso o egreso de stock.
+        /// </summary>
         private readonly CN_SolicitudStock cnSolicitudStock =
             new CN_SolicitudStock();
 
@@ -234,7 +243,7 @@ namespace Aura_Beauty
             Label lblSubtitulo = new Label();
 
             lblSubtitulo.Text =
-                "Control y actualización de existencias";
+                "Consulta y solicitud de movimientos de stock";
 
             lblSubtitulo.Font =
                 new Font("Segoe UI", 11F);
@@ -269,7 +278,7 @@ namespace Aura_Beauty
             Label lblOperacion = new Label();
 
             lblOperacion.Text =
-                "Actualizar existencias";
+                "Solicitar movimiento";
 
             lblOperacion.Font =
                 new Font(

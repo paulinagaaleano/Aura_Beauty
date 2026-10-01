@@ -12,7 +12,7 @@ namespace Datos
     /// Capa de Acceso a Datos correspondiente a la gestión de stock.
     ///
     /// Su responsabilidad es comunicarse directamente con SQL Server
-    /// para consultar y modificar las existencias de los productos.
+    /// para consultar las existencias de los productos.
     ///
     /// Esta clase NO contiene reglas de negocio ni elementos visuales.
     /// </summary>
@@ -116,62 +116,6 @@ namespace Datos
             }
 
             return lista;
-        }
-
-
-        /// <summary>
-        /// Actualiza únicamente la cantidad de stock de un producto.
-        ///
-        /// No modifica nombre, precio, descripción ni categoría.
-        /// </summary>
-        /// <param name="idProducto">
-        /// Identificador del producto a modificar.
-        /// </param>
-        /// <param name="nuevoStock">
-        /// Nueva cantidad total disponible.
-        /// </param>
-        /// <returns>
-        /// true si se modificó el producto; false si no se encontró.
-        /// </returns>
-        public bool ActualizarStock(
-            int idProducto,
-            int nuevoStock
-        )
-        {
-            using (SqlConnection conexion =
-                new SqlConnection(Conexion.cadena))
-            {
-                string consulta = @"
-                    UPDATE Producto
-                    SET
-                        stock = @stock,
-                        updated_at = GETDATE()
-                    WHERE Id_producto = @idProducto
-                      AND deleted_at IS NULL;";
-
-                SqlCommand comando =
-                    new SqlCommand(
-                        consulta,
-                        conexion
-                    );
-
-                comando.Parameters.AddWithValue(
-                    "@stock",
-                    nuevoStock
-                );
-
-                comando.Parameters.AddWithValue(
-                    "@idProducto",
-                    idProducto
-                );
-
-                conexion.Open();
-
-                int filasAfectadas =
-                    comando.ExecuteNonQuery();
-
-                return filasAfectadas > 0;
-            }
         }
     }
 }

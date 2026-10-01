@@ -433,18 +433,30 @@ namespace Aura_Beauty
         // ---------------------------------------------------------
 
         /// <summary>
-        /// Determina qué botones debe visualizar
-        /// el usuario según su rol.
+        /// Carga dinámicamente los módulos disponibles según
+        /// el rol del usuario autenticado.
         ///
-        /// Administrador:
-        /// tiene acceso a todos los módulos.
+        /// ADMINISTRADOR:
+        /// - Gestión de usuarios y roles.
+        /// - Consulta de productos.
+        /// - Reportes de ventas.
+        /// - Aprobación o rechazo de solicitudes de stock.
         ///
-        /// Vendedor:
-        /// puede consultar productos,
-        /// registrar ventas y gestionar clientes.
+        /// VENDEDOR:
+        /// - Consulta de productos.
+        /// - Registro de ventas.
+        /// - Gestión de clientes.
+        /// - Consulta de sus propias ventas.
+        /// - Cierre de caja.
         ///
-        /// Repositor:
-        /// puede trabajar con productos y stock.
+        /// REPOSITOR:
+        /// - Gestión del catálogo de productos.
+        /// - Consulta del stock.
+        /// - Registro de solicitudes justificadas de
+        ///   ingreso o egreso de stock.
+        ///
+        /// De esta manera, cada usuario visualiza únicamente
+        /// las funciones correspondientes a su rol.
         /// </summary>
         private void CargarModulosSegunRol()
         {
@@ -597,7 +609,7 @@ namespace Aura_Beauty
                     );
 
                     CrearBotonModulo(
-                        "Control de Stock",
+                        Solicitudes de Stock,
                         3,
                         480,
                         110
