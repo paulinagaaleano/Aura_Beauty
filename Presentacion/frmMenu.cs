@@ -478,6 +478,15 @@ namespace Aura_Beauty
 
                 case ROL_ADMINISTRADOR:
 
+                    /*
+                     * El Administrador se ocupa de tareas
+                     * administrativas y de supervisión.
+                     *
+                     * No realiza ventas.
+                     * No modifica productos.
+                     * No modifica stock.
+                     */
+
                     CrearBotonModulo(
                         "Gestión de Usuarios y Roles",
                         1,
@@ -486,38 +495,24 @@ namespace Aura_Beauty
                     );
 
                     CrearBotonModulo(
-                        "Catálogo de Productos",
+                        "Consulta de Productos",
                         2,
                         480,
-                        110
+                        210
                     );
 
                     CrearBotonModulo(
-                        "Control de Stock",
+                        "Consulta de Stock",
                         3,
                         60,
                         210
                     );
 
                     CrearBotonModulo(
-                        "Registro de Ventas",
-                        4,
-                        480,
-                        210
-                    );
-
-                    CrearBotonModulo(
-                        "Gestión de Clientes",
-                        5,
-                        60,
-                        310
-                    );
-
-                    CrearBotonModulo(
                         "Reportes y Estadísticas",
                         6,
                         480,
-                        310
+                        110
                     );
 
                     break;
@@ -807,9 +802,10 @@ namespace Aura_Beauty
 
 
                         case 2:
-                            // El Vendedor solamente puede consultar productos.
-                            // Administrador y Repositor pueden gestionar el catálogo.
-                            bool soloConsulta = usuarioActual.IdRol == ROL_VENDEDOR;
+                            // El Vendedor y Administrador solamente pueden consultar productos.
+                            // Repositor puede gestionar el catálogo.
+                            bool soloConsulta = usuarioActual.IdRol == ROL_VENDEDOR ||
+                            usuarioActual.IdRol == ROL_ADMINISTRADOR;
 
                             using (frmProductos formularioProductos = new frmProductos(soloConsulta))
                             {
@@ -1199,6 +1195,11 @@ namespace Aura_Beauty
 
             control.Region =
                 new Region(ruta);
+        }
+
+        private void frmMenu_Load(object sender, EventArgs e)
+        {
+
         }
     }
 }
