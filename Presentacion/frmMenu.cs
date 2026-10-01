@@ -816,9 +816,16 @@ namespace Aura_Beauty
 
 
                         case 3:
-                            // Abre el módulo específico para controlar
-                            // y actualizar las existencias de productos.
-                            using (frmStock formularioStock = new frmStock())
+
+                            /*
+                             * El módulo de Stock recibe al usuario
+                             * que inició sesión.
+                             *
+                             * Esto permitirá registrar quién realizó
+                             * cada solicitud de modificación de stock.
+                             */
+                            using (frmStock formularioStock =
+                                   new frmStock(usuarioActual))
                             {
                                 AbrirFormularioConVolver(formularioStock);
                             }

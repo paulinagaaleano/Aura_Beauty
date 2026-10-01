@@ -29,6 +29,7 @@ namespace Aura_Beauty
     /// al módulo Catálogo de Productos.
     /// </summary>
     public partial class frmStock : Form
+
     {
         // =========================================================
         // CAPA DE NEGOCIO
@@ -45,6 +46,15 @@ namespace Aura_Beauty
         /// que aparecerán en el filtro.
         /// </summary>
         private readonly CN_Categoria cnCategoria = new CN_Categoria();
+
+        /// <summary>
+        /// Usuario que inició sesión y accedió
+        /// al módulo de stock.
+        ///
+        /// En este módulo será el Repositor que
+        /// genera las solicitudes.
+        /// </summary>
+        private readonly Usuario usuarioActual;
 
 
         // =========================================================
@@ -124,8 +134,16 @@ namespace Aura_Beauty
         /// Después se crea nuestra interfaz y se cargan
         /// los datos provenientes de la capa de Negocio.
         /// </summary>
-        public frmStock()
+        public frmStock(Usuario usuario)
         {
+            /*
+                * Guardamos el usuario autenticado.
+                *
+                * De esta forma cada solicitud podrá quedar
+                * asociada al Repositor que la realizó.
+                */
+            usuarioActual = usuario;
+
             InitializeComponent();
 
             ConfigurarFormulario();
