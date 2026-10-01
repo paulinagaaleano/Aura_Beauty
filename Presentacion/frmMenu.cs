@@ -609,7 +609,7 @@ namespace Aura_Beauty
                     );
 
                     CrearBotonModulo(
-                        Solicitudes de Stock,
+                        "Solicitudes de Stock",
                         3,
                         480,
                         110
