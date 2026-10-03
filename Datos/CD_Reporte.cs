@@ -1,215 +1,109 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Entidades;
 using System.Data;
 using System.Data.SqlClient;
+using Entidades;
 
 namespace Datos
 {
-    /// <summary>
-    /// Clase de Acceso a Datos encargada de obtener
-    /// información para los reportes de ventas.
-    ///
-    /// No crea ni modifica ventas.
-    /// Su función es consultar información ya registrada
-    /// en la base de datos.
-    /// </summary>
     public class CD_Reporte
     {
-        /// <summary>
-        /// Obtiene las ventas comprendidas entre dos fechas.
-        ///
-        /// Si idUsuario es null, se muestran las ventas
-        /// de todos los vendedores.
-        ///
-        /// Si idUsuario tiene un valor, se filtran únicamente
-        /// las ventas realizadas por ese usuario.
-        /// </summary>
         public List<ReporteVenta> ObtenerVentas(
-            DateTime fechaDesde,
-            DateTime fechaHasta,
-            int? idUsuario)
+            DateTime fechaInicio,
+            DateTime fechaFin,
+            int? idUsuario
+        )
         {
-            List<ReporteVenta> lista =
-                new List<ReporteVenta>();
+            List<ReporteVenta> lista = new List<ReporteVenta>();
 
-
-            using (SqlConnection conexion =
-                new SqlConnection(Conexion.cadena))
+            using (SqlConnection oconexion = new SqlConnection(Conexion.cadena))
             {
                 try
                 {
-                    conexion.Open();
+                    SqlCommand cmd = new SqlCommand("SP_ReporteVentas", oconexion);
+                    cmd.CommandType = CommandType.StoredProcedure;
 
+                    // Ajustamos las fechas para abarcar desde las 00:00:00 del primer día hasta las 23:59:59 del día final
+                    cmd.Parameters.AddWithValue("@FechaInicio", fechaInicio.Date);
+                    cmd.Parameters.AddWithValue("@FechaFin", fechaFin.Date.AddDays(1).AddTicks(-1));
 
-                    // =================================================
-                    // CONSULTA
-                    // =================================================
+                    oconexion.Open();
 
-                    string consulta = @"
-                        SELECT
-                            vc.Id_ventaCabecera,
-                            vc.fecha_venta,
-                            vc.nro_factura,
-
-                            u.nombre + ' ' + u.apellido
-                                AS Vendedor,
-
-                            CASE
-                                WHEN c.Id_cliente IS NULL
-                                    THEN 'Consumidor Final'
-                                ELSE
-                                    c.apellido + ', ' + c.nombre
-                            END
-                                AS Cliente,
-
-                            vc.total
-
-                        FROM VentaCabecera vc
-
-                        INNER JOIN Usuario u
-                            ON u.id_usuario = vc.id_usuario
-
-                        LEFT JOIN Cliente c
-                            ON c.Id_cliente = vc.id_cliente
-
-                        WHERE
-                            vc.fecha_venta >= @fechaDesde
-
-                            AND vc.fecha_venta < @fechaHasta
-
-                            AND
-                            (
-                                @idUsuario IS NULL
-                                OR vc.id_usuario = @idUsuario
-                            )
-
-                        ORDER BY
-                            vc.fecha_venta DESC;";
-
-
-                    SqlCommand comando =
-                        new SqlCommand(
-                            consulta,
-                            conexion
-                        );
-
-
-                    // =================================================
-                    // PARÁMETROS DE FECHA
-                    // =================================================
-
-                    comando.Parameters.Add(
-                        "@fechaDesde",
-                        SqlDbType.DateTime
-                    ).Value =
-                        fechaDesde;
-
-
-                    comando.Parameters.Add(
-                        "@fechaHasta",
-                        SqlDbType.DateTime
-                    ).Value =
-                        fechaHasta;
-
-
-                    // =================================================
-                    // PARÁMETRO VENDEDOR
-                    // =================================================
-
-                    comando.Parameters.Add(
-                        "@idUsuario",
-                        SqlDbType.Int
-                    ).Value =
-                        idUsuario.HasValue
-                            ? (object)idUsuario.Value
-                            : DBNull.Value;
-
-
-                    // =================================================
-                    // EJECUTAR CONSULTA
-                    // =================================================
-
-                    using (SqlDataReader lector =
-                        comando.ExecuteReader())
+                    using (SqlDataReader dr = cmd.ExecuteReader())
                     {
-                        while (lector.Read())
+                        HashSet<int> idsVentasProcesadas = new HashSet<int>();
+
+                        while (dr.Read())
                         {
-                            ReporteVenta reporte =
-                                new ReporteVenta
+                            int idVenta = Convert.ToInt32(dr["Id_ventaCabecera"]);
+
+                            int idVendedorReg = 0;
+                            if (dr["id_usuario"] != DBNull.Value)
+                            {
+                                idVendedorReg = Convert.ToInt32(dr["id_usuario"]);
+                            }
+
+                            if (!idUsuario.HasValue || idUsuario.Value == 0 || idUsuario.Value == idVendedorReg)
+                            {
+                                if (!idsVentasProcesadas.Contains(idVenta))
                                 {
-                                    IdVenta =
-                                        Convert.ToInt32(
-                                            lector[
-                                                "Id_ventaCabecera"
-                                            ]
-                                        ),
+                                    ReporteVenta rv = new ReporteVenta
+                                    {
+                                        IdVenta = idVenta,
+                                        FechaVenta = Convert.ToDateTime(dr["Fecha"]),
+                                        NroFactura = idVenta.ToString("D8"),
+                                        Vendedor = dr["Vendedor"] != DBNull.Value ? dr["Vendedor"].ToString() : "Sin Vendedor",
+                                        Cliente = "Consumidor Final",
+                                        Total = dr["MontoTotal"] != DBNull.Value ? Convert.ToDecimal(dr["MontoTotal"]) : 0m
+                                    };
 
-                                    FechaVenta =
-                                        Convert.ToDateTime(
-                                            lector[
-                                                "fecha_venta"
-                                            ]
-                                        ),
-
-                                    NroFactura =
-                                        lector[
-                                            "nro_factura"
-                                        ] != DBNull.Value
-                                            ? lector[
-                                                "nro_factura"
-                                              ].ToString()
-                                            : "",
-
-                                    Vendedor =
-                                        lector[
-                                            "Vendedor"
-                                        ] != DBNull.Value
-                                            ? lector[
-                                                "Vendedor"
-                                              ].ToString()
-                                            : "",
-
-                                    Cliente =
-                                        lector[
-                                            "Cliente"
-                                        ] != DBNull.Value
-                                            ? lector[
-                                                "Cliente"
-                                              ].ToString()
-                                            : "Consumidor Final",
-
-                                    Total =
-                                        lector[
-                                            "total"
-                                        ] != DBNull.Value
-                                            ? Convert.ToDecimal(
-                                                lector["total"]
-                                              )
-                                            : 0
-                                };
-
-
-                            lista.Add(
-                                reporte
-                            );
+                                    lista.Add(rv);
+                                    idsVentasProcesadas.Add(idVenta);
+                                }
+                            }
                         }
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // No transformamos la excepción acá.
-                    // La enviamos hacia Negocio para que
-                    // pueda ser tratada por la aplicación.
-                    throw;
+                    throw new Exception("Error al consultar ventas en la base de datos: " + ex.Message);
                 }
             }
 
-
             return lista;
         }
+
+        public DataTable ObtenerReporteMovimientosStock(DateTime fechaInicio, DateTime fechaFin, out string mensaje)
+        {
+            mensaje = string.Empty;
+            DataTable tabla = new DataTable();
+
+            using (SqlConnection oconexion = new SqlConnection(Conexion.cadena))
+            {
+                try
+                {
+                    // Ajustamos el inicio a las 00:00:00 y el fin a las 23:59:59
+                    DateTime inicio = fechaInicio.Date;
+                    DateTime fin = fechaFin.Date.AddDays(1).AddSeconds(-1);
+
+                    SqlCommand cmd = new SqlCommand("SP_ReporteMovimientosStock", oconexion);
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.Parameters.AddWithValue("@FechaInicio", inicio);
+                    cmd.Parameters.AddWithValue("@FechaFin", fin);
+
+                    SqlDataAdapter da = new SqlDataAdapter(cmd);
+                    da.Fill(tabla);
+                }
+                catch (Exception ex)
+                {
+                    mensaje = ex.Message;
+                    tabla = new DataTable();
+                }
+            }
+
+            return tabla;
+        }
+
+        
+        }
     }
-}

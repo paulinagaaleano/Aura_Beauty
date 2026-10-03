@@ -36,33 +36,18 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.components =
-                new System.ComponentModel.Container();
-
             this.SuspendLayout();
-
             // 
             // frmReportes
             // 
-            this.AutoScaleDimensions =
-                new System.Drawing.SizeF(7F, 15F);
-
-            this.AutoScaleMode =
-                System.Windows.Forms.AutoScaleMode.Font;
-
-            this.ClientSize =
-                new System.Drawing.Size(
-                    1084,
-                    661
-                );
-
-            this.Name =
-                "frmReportes";
-
-            this.Text =
-                "Aura Beauty - Reportes de Ventas";
-
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.ClientSize = new System.Drawing.Size(929, 573);
+            this.Name = "frmReportes";
+            this.Text = "Aura Beauty - Reportes de Ventas";
+            this.Load += new System.EventHandler(this.frmReportes_Load);
             this.ResumeLayout(false);
+
         }
 
         #endregion
