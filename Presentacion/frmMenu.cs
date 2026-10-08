@@ -528,6 +528,13 @@ namespace Aura_Beauty
                         110
                     );
 
+                    CrearBotonModulo(
+                        "Consultas",
+                        10,
+                        60,
+                        310
+                    );
+
                     break;
 
 
@@ -915,6 +922,18 @@ namespace Aura_Beauty
                                 AbrirFormularioConVolver(
                                     formularioSolicitudes
                                 );
+                            }
+
+                            break;
+
+                        case 10:
+
+                            // Abre el módulo independiente de Consultas.
+                            // Conserva las consultas de ventas y movimientos de stock.
+
+                            using (frmConsultas formularioConsultas = new frmConsultas())
+                            {
+                                AbrirFormularioConVolver(formularioConsultas);
                             }
 
                             break;

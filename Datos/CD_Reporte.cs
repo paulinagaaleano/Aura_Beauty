@@ -8,6 +8,7 @@ namespace Datos
 {
     public class CD_Reporte
     {
+
         public List<ReporteVenta> ObtenerVentas(
             DateTime fechaInicio,
             DateTime fechaFin,
@@ -23,55 +24,62 @@ namespace Datos
                     SqlCommand cmd = new SqlCommand("SP_ReporteVentas", oconexion);
                     cmd.CommandType = CommandType.StoredProcedure;
 
-                    // Ajustamos las fechas para abarcar desde las 00:00:00 del primer día hasta las 23:59:59 del día final
+                    // Incluimos todas las ventas del período seleccionado.
                     cmd.Parameters.AddWithValue("@FechaInicio", fechaInicio.Date);
                     cmd.Parameters.AddWithValue("@FechaFin", fechaFin.Date.AddDays(1).AddTicks(-1));
+
+                    // Si no se selecciona vendedor, consultamos todos.
+                    cmd.Parameters.AddWithValue(
+                        "@IdUsuario",
+                        idUsuario.HasValue && idUsuario.Value > 0
+                            ? (object)idUsuario.Value
+                            : DBNull.Value
+                    );
 
                     oconexion.Open();
 
                     using (SqlDataReader dr = cmd.ExecuteReader())
                     {
-                        HashSet<int> idsVentasProcesadas = new HashSet<int>();
-
                         while (dr.Read())
                         {
-                            int idVenta = Convert.ToInt32(dr["Id_ventaCabecera"]);
-
-                            int idVendedorReg = 0;
-                            if (dr["id_usuario"] != DBNull.Value)
+                            ReporteVenta rv = new ReporteVenta
                             {
-                                idVendedorReg = Convert.ToInt32(dr["id_usuario"]);
-                            }
+                                IdVenta = Convert.ToInt32(dr["IdVenta"]),
 
-                            if (!idUsuario.HasValue || idUsuario.Value == 0 || idUsuario.Value == idVendedorReg)
-                            {
-                                if (!idsVentasProcesadas.Contains(idVenta))
-                                {
-                                    ReporteVenta rv = new ReporteVenta
-                                    {
-                                        IdVenta = idVenta,
-                                        FechaVenta = Convert.ToDateTime(dr["Fecha"]),
-                                        NroFactura = idVenta.ToString("D8"),
-                                        Vendedor = dr["Vendedor"] != DBNull.Value ? dr["Vendedor"].ToString() : "Sin Vendedor",
-                                        Cliente = "Consumidor Final",
-                                        Total = dr["MontoTotal"] != DBNull.Value ? Convert.ToDecimal(dr["MontoTotal"]) : 0m
-                                    };
+                                FechaVenta = Convert.ToDateTime(dr["FechaVenta"]),
 
-                                    lista.Add(rv);
-                                    idsVentasProcesadas.Add(idVenta);
-                                }
-                            }
+                                NroFactura = dr["NroFactura"] != DBNull.Value
+                                    ? dr["NroFactura"].ToString()
+                                    : "",
+
+                                Vendedor = dr["Vendedor"] != DBNull.Value
+                                    ? dr["Vendedor"].ToString()
+                                    : "Sin Vendedor",
+
+                                Cliente = dr["Cliente"] != DBNull.Value
+                                    ? dr["Cliente"].ToString()
+                                    : "Consumidor Final",
+
+                                Total = dr["Total"] != DBNull.Value
+                                    ? Convert.ToDecimal(dr["Total"])
+                                    : 0m
+                            };
+
+                            lista.Add(rv);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    throw new Exception("Error al consultar ventas en la base de datos: " + ex.Message);
+                    throw new Exception(
+                        "Error al consultar ventas en la base de datos: "
+                        + ex.Message, ex);
                 }
             }
 
             return lista;
         }
+
 
         public DataTable ObtenerReporteMovimientosStock(DateTime fechaInicio, DateTime fechaFin, out string mensaje)
         {
