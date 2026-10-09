@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace Entidades
 {
     /// <summary>
-    /// Representa una fila del reporte de ventas.
+    /// Representa una fila del reporte de ventas. UNA VENTA INDIVIDUAL
     ///
     /// Esta clase NO corresponde a una tabla propia de la base
     /// de datos. Su función es transportar información obtenida

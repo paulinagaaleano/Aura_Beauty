@@ -1,4 +1,8 @@
-﻿using System;
+﻿using Entidades;
+using Negocio;
+using PdfSharp.Drawing;
+using PdfSharp.Pdf;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
@@ -6,12 +10,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using Entidades;
-using Negocio;
-
-// LIBRERÍAS DE PDFSHARP
-using PdfSharp.Drawing;
-using PdfSharp.Pdf;
+using System.Windows.Forms.DataVisualization.Charting;
 
 namespace Aura_Beauty
 {
@@ -49,6 +48,20 @@ namespace Aura_Beauty
         private Label lblResumen1;
         private Label lblResumen2;
 
+        private Label lblFacturacion;
+        private Label lblCantidadVentas;
+        private Label lblTicketPromedio;
+        private Label lblUnidadesVendidas;
+        private Label lblVentaMaxima;
+        private Label lblVentaMinima;
+
+        // Etiquetas que mostraran la comparacion entre meses.
+        private Label lblFacturacionActual;
+        private Label lblFacturacionAnterior;
+        private Label lblDiferenciaFacturacion;
+        private Label lblVariacionPorcentual;
+
+
         public frmReportes()
         {
             InitializeComponent();
@@ -63,24 +76,42 @@ namespace Aura_Beauty
             // Evento Load del formulario
         }
 
+
         private void ConfigurarFormulario()
         {
+            // Configura el título y la posición inicial del formulario.
             Text = "Aura Beauty - Centro de Reportes";
             StartPosition = FormStartPosition.CenterScreen;
-            Width = 1100;
-            Height = 720;
+
+            // Permite aprovechar el espacio disponible de la pantalla.
+            WindowState = FormWindowState.Maximized;
+
+            // Evita que el formulario se reduzca demasiado.
+            MinimumSize = new Size(1000, 700);
+
+            // Conserva los colores y la tipografía del sistema.
             BackColor = colorFondo;
             Font = new Font("Segoe UI", 10F);
-            FormBorderStyle = FormBorderStyle.FixedSingle;
-            MaximizeBox = false;
         }
+
+
 
         private void CrearInterfaz()
         {
-            // ENCABEZADO
-            Panel panelEncabezado = new Panel { Dock = DockStyle.Top, Height = 110, BackColor = colorRosa };
+            // =====================================================
+            // 1. ENCABEZADO DEL CENTRO DE REPORTES
+            // =====================================================
+
+            Panel panelEncabezado = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 110,
+                BackColor = colorRosa
+            };
+
             Controls.Add(panelEncabezado);
 
+            // Título principal del formulario.
             Label lblTitulo = new Label
             {
                 Text = "CENTRO DE REPORTES",
@@ -89,8 +120,10 @@ namespace Aura_Beauty
                 AutoSize = true,
                 Location = new Point(30, 20)
             };
+
             panelEncabezado.Controls.Add(lblTitulo);
 
+            // Texto descriptivo del contenido de los reportes.
             Label lblSubtitulo = new Label
             {
                 Text = "Consulta consolidada de ventas e historial de movimientos de stock",
@@ -99,57 +132,111 @@ namespace Aura_Beauty
                 AutoSize = true,
                 Location = new Point(33, 65)
             };
+
             panelEncabezado.Controls.Add(lblSubtitulo);
 
-            // PANEL DE FILTROS Y SELECTOR
-            Panel panelFiltros = new Panel { Location = new Point(20, 125), Size = new Size(1040, 125), BackColor = Color.White };
+
+            // =====================================================
+            // 2. PANEL DE FILTROS
+            // =====================================================
+
+            Panel panelFiltros = new Panel
+            {
+                Location = new Point(20, 125),
+                Size = new Size(1040, 125),
+                BackColor = Color.White
+            };
+
             Controls.Add(panelFiltros);
 
-            panelFiltros.Controls.Add(CrearEtiqueta("Tipo de Reporte:", 20, 15));
+            // Selector del tipo de reporte.
+            panelFiltros.Controls.Add(
+                CrearEtiqueta("Tipo de Reporte:", 20, 15));
+
             cboTipoReporte = new ComboBox
             {
                 Location = new Point(20, 40),
                 Size = new Size(180, 30),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
+
+            // Opciones de reportes disponibles.
             cboTipoReporte.Items.Add("Ventas");
             cboTipoReporte.Items.Add("Movimientos de Stock");
+
+            // Selecciona Ventas como opción inicial.
             cboTipoReporte.SelectedIndex = 0;
-            cboTipoReporte.SelectedIndexChanged += (s, e) => CambiarTipoReporte();
+
+            // Actualiza los controles cuando cambia el tipo de reporte.
+            cboTipoReporte.SelectedIndexChanged +=
+                (s, e) => CambiarTipoReporte();
+
             panelFiltros.Controls.Add(cboTipoReporte);
 
-            // FILTROS COMUNES DE FECHA
+
+            // Filtros por fecha de inicio y finalización.
             lblDesde = CrearEtiqueta("Desde:", 220, 15);
-            dtpDesde = new DateTimePicker { Location = new Point(220, 40), Size = new Size(120, 30), Format = DateTimePickerFormat.Short };
+
+            dtpDesde = new DateTimePicker
+            {
+                Location = new Point(220, 40),
+                Size = new Size(120, 30),
+                Format = DateTimePickerFormat.Short
+            };
+
             lblHasta = CrearEtiqueta("Hasta:", 350, 15);
-            dtpHasta = new DateTimePicker { Location = new Point(350, 40), Size = new Size(120, 30), Format = DateTimePickerFormat.Short };
+
+            dtpHasta = new DateTimePicker
+            {
+                Location = new Point(350, 40),
+                Size = new Size(120, 30),
+                Format = DateTimePickerFormat.Short
+            };
 
             panelFiltros.Controls.Add(lblDesde);
             panelFiltros.Controls.Add(dtpDesde);
             panelFiltros.Controls.Add(lblHasta);
             panelFiltros.Controls.Add(dtpHasta);
 
-            // FILTRO ESPECÍFICO DE VENTAS (Vendedor)
+
+            // Filtro por vendedor para el reporte de ventas.
             lblVendedor = CrearEtiqueta("Vendedor:", 480, 15);
-            cboVendedor = new ComboBox { Location = new Point(480, 40), Size = new Size(200, 30), DropDownStyle = ComboBoxStyle.DropDownList };
+
+            cboVendedor = new ComboBox
+            {
+                Location = new Point(480, 40),
+                Size = new Size(200, 30),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+
             panelFiltros.Controls.Add(lblVendedor);
             panelFiltros.Controls.Add(cboVendedor);
 
-            // FILTRO ESPECÍFICO DE MOVIMIENTOS (Búsqueda)
+
+            // Campo de búsqueda para los movimientos de stock.
             lblBuscarStock = CrearEtiqueta("Buscar Producto:", 480, 15);
-            txtBuscarStock = new TextBox { Location = new Point(480, 40), Size = new Size(220, 30) };
+
+            txtBuscarStock = new TextBox
+            {
+                Location = new Point(480, 40),
+                Size = new Size(220, 30)
+            };
+
             panelFiltros.Controls.Add(lblBuscarStock);
             panelFiltros.Controls.Add(txtBuscarStock);
 
-            // BOTONES
+
+            // Botón para ejecutar el reporte seleccionado.
             btnBuscar = CrearBoton("BUSCAR", 720, 35, 95);
             btnBuscar.Click += btnBuscar_Click;
             panelFiltros.Controls.Add(btnBuscar);
 
+            // Botón para limpiar filtros y resultados.
             btnLimpiar = CrearBotonSecundario("LIMPIAR", 825, 35, 95);
             btnLimpiar.Click += btnLimpiar_Click;
             panelFiltros.Controls.Add(btnLimpiar);
 
+            // Botón para exportar los resultados a PDF.
             btnExportarPDF = new Button
             {
                 Text = "DESCARGAR PDF",
@@ -161,24 +248,153 @@ namespace Aura_Beauty
                 Font = new Font("Segoe UI", 8F, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
+
             btnExportarPDF.FlatAppearance.BorderSize = 0;
             btnExportarPDF.Click += btnExportarPDF_Click;
             panelFiltros.Controls.Add(btnExportarPDF);
 
-            // PANEL DE RESULTADOS
-            Panel panelResultados = new Panel { Location = new Point(20, 265), Size = new Size(1040, 390), BackColor = Color.White };
+
+            // =====================================================
+            // 3. PANEL PRINCIPAL DE RESULTADOS
+            // =====================================================
+
+            // El panel ocupa el espacio restante debajo de los filtros.
+            Panel panelResultados = new Panel
+            {
+                Location = new Point(20, 265),
+                Size = new Size(
+                    ClientSize.Width - 40,
+                    ClientSize.Height - 285),
+
+                Anchor = AnchorStyles.Top |
+                         AnchorStyles.Bottom |
+                         AnchorStyles.Left |
+                         AnchorStyles.Right,
+
+                BackColor = Color.White,
+
+                // Permite desplazarse si el contenido supera la altura.
+                AutoScroll = true
+            };
+
             Controls.Add(panelResultados);
 
-            dgvReporte = new DataGridView { Location = new Point(20, 20), Size = new Size(1000, 300) };
+
+            // =====================================================
+            // 4. TARJETAS DE INDICADORES DE VENTAS
+            // =====================================================
+
+            // Cada tarjeta muestra un indicador calculado en Negocio.
+            lblFacturacion = CrearIndicador(
+                "FACTURACIÓN TOTAL", 20, 20);
+
+            lblCantidadVentas = CrearIndicador(
+                "CANTIDAD DE VENTAS", 190, 20);
+
+            lblTicketPromedio = CrearIndicador(
+                "TICKET PROMEDIO", 360, 20);
+
+            lblUnidadesVendidas = CrearIndicador(
+                "UNIDADES VENDIDAS", 530, 20);
+
+            lblVentaMaxima = CrearIndicador(
+                "VENTA MÁXIMA", 700, 20);
+
+            lblVentaMinima = CrearIndicador(
+                "VENTA MÍNIMA", 870, 20);
+
+            // Agrega las seis tarjetas al panel.
+            panelResultados.Controls.Add(lblFacturacion);
+            panelResultados.Controls.Add(lblCantidadVentas);
+            panelResultados.Controls.Add(lblTicketPromedio);
+            panelResultados.Controls.Add(lblUnidadesVendidas);
+            panelResultados.Controls.Add(lblVentaMaxima);
+            panelResultados.Controls.Add(lblVentaMinima);
+
+
+            // =====================================================
+            // 5. GRILLA DE RESULTADOS
+            // =====================================================
+
+            // Muestra las ventas o los movimientos de stock consultados.
+            dgvReporte = new DataGridView
+            {
+                Location = new Point(20, 115),
+
+                // Se adapta al ancho del panel y deja espacio debajo.
+                Size = new Size(
+                    panelResultados.ClientSize.Width - 40,
+                    150),
+
+                Anchor = AnchorStyles.Top |
+                         AnchorStyles.Left |
+                         AnchorStyles.Right
+            };
+
+            // Aplica las propiedades de visualización ya definidas.
             ConfigurarGrilla(dgvReporte);
+
             panelResultados.Controls.Add(dgvReporte);
 
-            lblResumen1 = new Label { Location = new Point(20, 338), AutoSize = true, Font = new Font("Segoe UI", 11F, FontStyle.Bold), ForeColor = colorTexto };
-            lblResumen2 = new Label { Location = new Point(720, 338), Size = new Size(300, 35), TextAlign = ContentAlignment.MiddleRight, Font = new Font("Segoe UI", 14F, FontStyle.Bold), ForeColor = colorRosaOscuro };
+
+            // =====================================================
+            // 6. COMPARACIÓN MENSUAL
+            // =====================================================
+
+            // Muestra la facturación del mes seleccionado.
+            lblFacturacionActual = CrearEtiqueta(
+                "Facturación del mes seleccionado: pendiente",
+                23, 280);
+
+            // Muestra la facturación del mes anterior.
+            lblFacturacionAnterior = CrearEtiqueta(
+                "Facturación del mes anterior: pendiente",
+                23, 310);
+
+            // Muestra la diferencia monetaria entre ambos períodos.
+            lblDiferenciaFacturacion = CrearEtiqueta(
+                "Diferencia de facturación: pendiente",
+                23, 340);
+
+            // Muestra el porcentaje de variación mensual.
+            lblVariacionPorcentual = CrearEtiqueta(
+                "Variación porcentual: pendiente",
+                23, 370);
+
+            // Texto que ayuda a interpretar la variación mensual.
+            Label lblAyudaVariacion = new Label
+            {
+                Text = "Variación mensual: porcentaje de aumento o disminución " +
+                       "de la facturación respecto del mes anterior.",
+
+                Location = new Point(23, 400),
+                Size = new Size(980, 40),
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Segoe UI", 9F),
+                ForeColor = colorTexto
+            };
+
+            // Agrega cada etiqueta una sola vez.
+            panelResultados.Controls.Add(lblFacturacionActual);
+            panelResultados.Controls.Add(lblFacturacionAnterior);
+            panelResultados.Controls.Add(lblDiferenciaFacturacion);
+            panelResultados.Controls.Add(lblVariacionPorcentual);
+            panelResultados.Controls.Add(lblAyudaVariacion);
+
+
+            // =====================================================
+            // 7. RESUMEN INFERIOR
+            // =====================================================
+
+            // Estas etiquetas se actualizan al ejecutar una consulta.
+            lblResumen1 = CrearEtiqueta("", 23, 445);
+            lblResumen2 = CrearEtiqueta("", 23, 475);
 
             panelResultados.Controls.Add(lblResumen1);
             panelResultados.Controls.Add(lblResumen2);
         }
+
 
         private void CambiarTipoReporte()
         {
@@ -218,32 +434,148 @@ namespace Aura_Beauty
 
         private void btnBuscar_Click(object sender, EventArgs e)
         {
-            if (cboTipoReporte.SelectedIndex == 0)
+            try
             {
-                int? idUsuario = (cboVendedor.SelectedItem as Usuario)?.IdUsuario;
-                if (idUsuario == 0) idUsuario = null;
-
-                listaReporteVentas = cnReporte.ObtenerVentas(dtpDesde.Value, dtpHasta.Value, idUsuario);
-
-                var datos = listaReporteVentas.Select(v => new
+                if (cboTipoReporte.SelectedIndex == 0)
                 {
-                    v.IdVenta,
-                    Fecha = v.FechaVenta.ToString("dd/MM/yyyy HH:mm"),
-                    v.NroFactura,
-                    v.Vendedor,
-                    v.Cliente,
-                    Total = v.Total.ToString("N2")
-                }).ToList();
+                    int? idUsuario =
+                        (cboVendedor.SelectedItem as Usuario)?.IdUsuario;
 
-                dgvReporte.AutoGenerateColumns = true;
-                dgvReporte.DataSource = datos;
-                lblResumen1.Text = "Cantidad de ventas: " + listaReporteVentas.Count;
-                lblResumen2.Text = "TOTAL: $ " + listaReporteVentas.Sum(v => v.Total).ToString("N2");
-                lblResumen2.ForeColor = colorRosaOscuro;
+                    if (idUsuario == 0)
+                        idUsuario = null;
+
+
+                    // OBTENER RESUMEN CALCULADO EN NEGOCIO
+                    ResumenVentas resumen =
+                        cnReporte.ObtenerResumenVentas(
+                            dtpDesde.Value,
+                            dtpHasta.Value,
+                            idUsuario);
+
+
+                    // MOSTRAR INDICADORES
+
+                    lblFacturacion.Text =
+                        "FACTURACIÓN TOTAL\n$ " +
+                        resumen.FacturacionTotal.ToString("N2");
+
+                    lblCantidadVentas.Text =
+                        "CANTIDAD DE VENTAS\n" +
+                        resumen.CantidadVentas.ToString();
+
+                    lblTicketPromedio.Text =
+                        "TICKET PROMEDIO\n$ " +
+                        resumen.TicketPromedio.ToString("N2");
+
+                    lblUnidadesVendidas.Text =
+                        "UNIDADES VENDIDAS\n" +
+                        resumen.UnidadesVendidas.ToString();
+
+                    lblVentaMaxima.Text =
+                        "VENTA MÁXIMA\n$ " +
+                        resumen.VentaMaxima.ToString("N2");
+
+                    lblVentaMinima.Text =
+                        "VENTA MÍNIMA\n$ " +
+                        resumen.VentaMinima.ToString("N2");
+
+                  
+                    // Usa la fecha final seleccionada para determinar el mes actual.
+                    DateTime fechaReferencia = dtpHasta.Value;
+
+                    // Calcula el primer día del mes actual.
+                    DateTime inicioMesActual = new DateTime(
+                        fechaReferencia.Year,
+                        fechaReferencia.Month,
+                        1);
+
+                    // Calcula el último día del mes actual.
+                    DateTime finMesActual = inicioMesActual
+                        .AddMonths(1)
+                        .AddDays(-1);
+
+                    // Calcula el primer día del mes anterior.
+                    DateTime inicioMesAnterior = inicioMesActual.AddMonths(-1);
+
+                    // Calcula el último día del mes anterior.
+                    DateTime finMesAnterior = inicioMesActual.AddDays(-1);
+
+
+                    // Obtiene los indicadores comparativos desde la capa Negocio.
+                    ComparacionVentas comparacion = cnReporte.CompararVentas(
+                        inicioMesActual,
+                        finMesActual,
+                        inicioMesAnterior,
+                        finMesAnterior,
+                        idUsuario);
+
+                    // Muestra la facturación del mes seleccionado.
+                    lblFacturacionActual.Text =
+                        "FACTURACIÓN DEL MES ACTUAL: $ " +
+                        comparacion.FacturacionActual.ToString("N2");
+
+                    // Muestra la facturación del mes anterior.
+                    lblFacturacionAnterior.Text =
+                        "FACTURACIÓN DEL MES ANTERIOR: $ " +
+                        comparacion.FacturacionAnterior.ToString("N2");
+
+                    // Muestra la diferencia monetaria entre ambos meses.
+                    lblDiferenciaFacturacion.Text =
+                        "DIFERENCIA: $ " +
+                        comparacion.DiferenciaFacturacion.ToString("N2");
+
+                    // Muestra la variación porcentual, si se puede calcular.
+                    lblVariacionPorcentual.Text =
+                        comparacion.VariacionPorcentual.HasValue
+                            ? "VARIACIÓN MENSUAL: " +
+                              comparacion.VariacionPorcentual.Value.ToString("N2") + "%"
+                            : "VARIACIÓN MENSUAL: No calculable (mes anterior sin facturación)";
+
+
+
+
+                    // OBTENER VENTAS PARA LA GRILLA
+                    listaReporteVentas =
+                        cnReporte.ObtenerVentasAnalisis(
+                            dtpDesde.Value,
+                            dtpHasta.Value,
+                            idUsuario);
+
+
+                    var datos = listaReporteVentas.Select(v => new
+                    {
+                        v.IdVenta,
+                        Fecha = v.FechaVenta.ToString("dd/MM/yyyy HH:mm"),
+                        Total = v.Total.ToString("N2")
+                    }).ToList();
+
+
+                    dgvReporte.AutoGenerateColumns = true;
+                    dgvReporte.DataSource = datos;
+
+                    // RESUMEN INFERIOR
+                    lblResumen1.Text =
+                        "Cantidad de ventas: " +
+                        resumen.CantidadVentas;
+
+                    lblResumen2.Text =
+                        "TOTAL: $ " +
+                        resumen.FacturacionTotal.ToString("N2");
+
+                    lblResumen2.ForeColor = colorRosaOscuro;
+                }
+                else
+                {
+                    CargarReporteMovimientosStock();
+                }
             }
-            else
+            catch (Exception ex)
             {
-                CargarReporteMovimientosStock();
+                MessageBox.Show(
+                    "Error al buscar: " + ex.Message,
+                    "Aura Beauty",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
 
@@ -452,5 +784,23 @@ namespace Aura_Beauty
         private Button CrearBoton(string t, int x, int y, int w) => new Button { Text = t, Location = new Point(x, y), Size = new Size(w, 40), BackColor = colorRosa, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9F, FontStyle.Bold), Cursor = Cursors.Hand };
         private Button CrearBotonSecundario(string t, int x, int y, int w) => new Button { Text = t, Location = new Point(x, y), Size = new Size(w, 40), BackColor = Color.White, ForeColor = colorRosaOscuro, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9F, FontStyle.Bold), Cursor = Cursors.Hand };
         private void ConfigurarGrilla(DataGridView g) { g.AllowUserToAddRows = false; g.ReadOnly = true; g.MultiSelect = false; g.SelectionMode = DataGridViewSelectionMode.FullRowSelect; g.BackgroundColor = Color.White; g.RowHeadersVisible = false; g.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill; }
+    
+
+    private Label CrearIndicador(string titulo, int x, int y)
+        {
+            Label lbl = new Label
+            {
+                Text = titulo + "\n$ 0,00",
+                Location = new Point(x, y),
+                Size = new Size(155, 75),
+                BackColor = Color.White,
+                ForeColor = colorRosaOscuro,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            return lbl;
+        }
     }
 }
