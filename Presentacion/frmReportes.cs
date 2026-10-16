@@ -1,12 +1,13 @@
-﻿using Entidades;
+﻿
+using Entidades;
 using Negocio;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -14,793 +15,1627 @@ using System.Windows.Forms.DataVisualization.Charting;
 
 namespace Aura_Beauty
 {
+    /// <summary>
+    /// CENTRO DE REPORTES - CAPA PRESENTACIÓN.
+    ///
+    /// Presenta siete secciones:
+    /// Ventas, Productos, Categorías, Stock,
+    /// Solicitudes, Vendedores y Clientes.
+    ///
+    /// No ejecuta SQL ni calcula estadísticas comerciales.
+    /// Todos los resultados provienen de CN_Reporte.
+    ///
+    /// El selector cambia según la sección:
+    /// - Ventas: vendedor.
+    /// - Productos: producto.
+    /// - Categorías: categoría.
+    /// - Stock: producto.
+    /// - Solicitudes: estado.
+    /// - Vendedores: vendedor.
+    /// - Clientes: cliente.
+    /// </summary>
     public partial class frmReportes : Form
     {
-        private readonly CN_Reporte cnReporte = new CN_Reporte();
-        private readonly CN_Usuario cnUsuario = new CN_Usuario();
+        // ==================================================
+        // CAPA NEGOCIO
+        // ==================================================
 
-        private List<Usuario> listaUsuarios = new List<Usuario>();
-        private List<ReporteVenta> listaReporteVentas = new List<ReporteVenta>();
-        private DataTable dtMovimientosStock = new DataTable();
+        private readonly CN_Reporte negocio =
+            new CN_Reporte();
 
+        // ==================================================
         // COLORES AURA BEAUTY
-        private readonly Color colorRosa = Color.FromArgb(201, 143, 149);
-        private readonly Color colorRosaOscuro = Color.FromArgb(174, 112, 120);
-        private readonly Color colorFondo = Color.FromArgb(255, 249, 248);
-        private readonly Color colorTexto = Color.FromArgb(94, 74, 74);
+        // ==================================================
 
-        // CONTROLES
-        private ComboBox cboTipoReporte;
+        private readonly Color rosa =
+            Color.FromArgb(195, 139, 147);
+
+        private readonly Color rosaOscuro =
+            Color.FromArgb(155, 94, 106);
+
+        private readonly Color beige =
+            Color.FromArgb(247, 239, 232);
+
+        private readonly Color fondo =
+            Color.FromArgb(250, 246, 243);
+
+        private readonly Color texto =
+            Color.FromArgb(64, 55, 57);
+
+        private readonly Color gris =
+            Color.FromArgb(130, 118, 120);
+
+        private readonly Color linea =
+            Color.FromArgb(231, 220, 217);
+
+        private readonly Color rosaClaro =
+            Color.FromArgb(245, 227, 229);
+
+        // ==================================================
+        // CONTROLES DEL FORMULARIO
+        // ==================================================
+
+        private Panel panelLateral;
+        private Panel panelPrincipal;
+        private TableLayoutPanel contenido;
+
+        private Label lblTituloSeccion;
+        private Label lblNombreFiltro;
+        private Label lblTituloGrafico1;
+        private Label lblTituloGrafico2;
+        private Label lblEstado;
+
         private DateTimePicker dtpDesde;
         private DateTimePicker dtpHasta;
-        private ComboBox cboVendedor;
-        private TextBox txtBuscarStock;
-        private Label lblVendedor;
-        private Label lblDesde;
-        private Label lblHasta;
-        private Label lblBuscarStock;
 
-        private Button btnBuscar;
-        private Button btnLimpiar;
-        private Button btnExportarPDF;
+        private ComboBox cboFiltro;
 
-        private DataGridView dgvReporte;
-        private Label lblResumen1;
-        private Label lblResumen2;
+        private Chart grafico1;
+        private Chart grafico2;
 
-        private Label lblFacturacion;
-        private Label lblCantidadVentas;
-        private Label lblTicketPromedio;
-        private Label lblUnidadesVendidas;
-        private Label lblVentaMaxima;
-        private Label lblVentaMinima;
+        private DataGridView dgvResultados;
 
-        // Etiquetas que mostraran la comparacion entre meses.
-        private Label lblFacturacionActual;
-        private Label lblFacturacionAnterior;
-        private Label lblDiferenciaFacturacion;
-        private Label lblVariacionPorcentual;
+        private readonly Label[] titulos =
+            new Label[6];
 
+        private readonly Label[] valores =
+            new Label[6];
 
+        private readonly Dictionary<string, Button> botones =
+            new Dictionary<string, Button>();
+
+        // ==================================================
+        // ESTADO ACTUAL
+        // ==================================================
+
+        private string seccionActual = "Ventas";
+
+        private VistaReporte ultimoReporte;
+
+        // ==================================================
+        // CONSTRUCTOR
+        // ==================================================
+
+        /// <summary>
+        /// Inicializa la pantalla sin ejecutar
+        /// automáticamente consultas de reportes.
+        /// </summary>
         public frmReportes()
         {
             InitializeComponent();
-            ConfigurarFormulario();
-            CrearInterfaz();
-            CargarVendedores();
-            CambiarTipoReporte();
-        }
 
-        private void frmReportes_Load(object sender, EventArgs e)
-        {
-            // Evento Load del formulario
-        }
-
-
-        private void ConfigurarFormulario()
-        {
-            // Configura el título y la posición inicial del formulario.
             Text = "Aura Beauty - Centro de Reportes";
-            StartPosition = FormStartPosition.CenterScreen;
 
-            // Permite aprovechar el espacio disponible de la pantalla.
-            WindowState = FormWindowState.Maximized;
+            StartPosition =
+                FormStartPosition.CenterScreen;
 
-            // Evita que el formulario se reduzca demasiado.
-            MinimumSize = new Size(1000, 700);
+            WindowState =
+                FormWindowState.Maximized;
 
-            // Conserva los colores y la tipografía del sistema.
-            BackColor = colorFondo;
-            Font = new Font("Segoe UI", 10F);
+            MinimumSize = new Size(1100, 720);
+
+            BackColor = fondo;
+
+            Font = new Font("Segoe UI", 9.5F);
+
+            CrearInterfaz();
+
+            PrepararSeccion("Ventas");
         }
 
+        /// <summary>
+        /// Evento conservado para mantener compatibilidad
+        /// con frmReportes.Designer.cs.
+        /// </summary>
+        private void frmReportes_Load(
+            object sender,
+            EventArgs e)
+        {
+        }
 
+        // ==================================================
+        // ESTRUCTURA PRINCIPAL
+        // ==================================================
 
+        /// <summary>
+        /// Utiliza dos columnas independientes.
+        ///
+        /// La izquierda contiene el menú.
+        /// La derecha contiene los reportes.
+        ///
+        /// Esta distribución evita que el menú lateral
+        /// tape las tarjetas, gráficos o filtros.
+        /// </summary>
         private void CrearInterfaz()
         {
-            // =====================================================
-            // 1. ENCABEZADO DEL CENTRO DE REPORTES
-            // =====================================================
+            SuspendLayout();
 
-            Panel panelEncabezado = new Panel
+            Controls.Clear();
+
+            TableLayoutPanel general =
+                new TableLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 2,
+                    RowCount = 1,
+                    BackColor = fondo,
+                    Margin = Padding.Empty,
+                    Padding = Padding.Empty
+                };
+
+            general.ColumnStyles.Add(
+                new ColumnStyle(
+                    SizeType.Absolute, 210F));
+
+            general.ColumnStyles.Add(
+                new ColumnStyle(
+                    SizeType.Percent, 100F));
+
+            general.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Percent, 100F));
+
+            Controls.Add(general);
+
+            panelLateral = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = beige,
+                Margin = Padding.Empty
+            };
+
+            panelPrincipal = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = fondo,
+                AutoScroll = true,
+                Margin = Padding.Empty
+            };
+
+            general.Controls.Add(
+                panelLateral, 0, 0);
+
+            general.Controls.Add(
+                panelPrincipal, 1, 0);
+
+            CrearMenu();
+
+            contenido = new TableLayoutPanel
             {
                 Dock = DockStyle.Top,
-                Height = 110,
-                BackColor = colorRosa
+                Height = 1200,
+                ColumnCount = 1,
+                RowCount = 5,
+                Margin = Padding.Empty,
+                Padding = new Padding(24, 16, 24, 18),
+                BackColor = fondo
             };
 
-            Controls.Add(panelEncabezado);
+            contenido.ColumnStyles.Add(
+                new ColumnStyle(
+                    SizeType.Percent, 100F));
 
-            // Título principal del formulario.
-            Label lblTitulo = new Label
+            contenido.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Absolute, 103F));
+
+            contenido.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Absolute, 160F));
+
+            contenido.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Absolute, 260F));
+
+            contenido.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Absolute, 310F));
+
+            contenido.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Absolute, 310F));
+
+            panelPrincipal.Controls.Add(contenido);
+
+            CrearEncabezado();
+            CrearFiltros();
+            CrearTarjetas();
+            CrearGraficos();
+            CrearTabla();
+
+            ResumeLayout(true);
+        }
+
+        // ==================================================
+        // MENÚ LATERAL
+        // ==================================================
+
+        /// <summary>
+        /// Construye las siete opciones de reportes.
+        ///
+        /// El botón Volver al menú lo aporta frmMenu.
+        /// No se duplica dentro de este formulario.
+        /// </summary>
+        private void CrearMenu()
+        {
+            panelLateral.Controls.Add(new Label
             {
-                Text = "CENTRO DE REPORTES",
-                Font = new Font("Segoe UI", 22F, FontStyle.Bold),
-                ForeColor = Color.White,
-                AutoSize = true,
-                Location = new Point(30, 20)
-            };
+                Text = "AURA",
+                Location = new Point(24, 28),
+                Size = new Size(165, 48),
+                ForeColor = rosaOscuro,
+                Font = new Font(
+                    "Segoe UI", 24F, FontStyle.Bold)
+            });
 
-            panelEncabezado.Controls.Add(lblTitulo);
-
-            // Texto descriptivo del contenido de los reportes.
-            Label lblSubtitulo = new Label
+            panelLateral.Controls.Add(new Label
             {
-                Text = "Consulta consolidada de ventas e historial de movimientos de stock",
-                Font = new Font("Segoe UI", 11F),
-                ForeColor = Color.White,
-                AutoSize = true,
-                Location = new Point(33, 65)
-            };
+                Text = "BEAUTY | REPORTES",
+                Location = new Point(25, 82),
+                Size = new Size(175, 25),
+                ForeColor = gris,
+                Font = new Font(
+                    "Segoe UI", 8.5F, FontStyle.Bold)
+            });
 
-            panelEncabezado.Controls.Add(lblSubtitulo);
-
-
-            // =====================================================
-            // 2. PANEL DE FILTROS
-            // =====================================================
-
-            Panel panelFiltros = new Panel
+            panelLateral.Controls.Add(new Panel
             {
                 Location = new Point(20, 125),
-                Size = new Size(1040, 125),
-                BackColor = Color.White
-            };
+                Size = new Size(170, 1),
+                BackColor = linea
+            });
 
-            Controls.Add(panelFiltros);
-
-            // Selector del tipo de reporte.
-            panelFiltros.Controls.Add(
-                CrearEtiqueta("Tipo de Reporte:", 20, 15));
-
-            cboTipoReporte = new ComboBox
+            string[] secciones =
             {
-                Location = new Point(20, 40),
-                Size = new Size(180, 30),
-                DropDownStyle = ComboBoxStyle.DropDownList
+                "Ventas",
+                "Productos",
+                "Categorías",
+                "Stock",
+                "Solicitudes",
+                "Vendedores",
+                "Clientes"
             };
 
-            // Opciones de reportes disponibles.
-            cboTipoReporte.Items.Add("Ventas");
-            cboTipoReporte.Items.Add("Movimientos de Stock");
+            for (int i = 0; i < secciones.Length; i++)
+            {
+                string nombre = secciones[i];
 
-            // Selecciona Ventas como opción inicial.
-            cboTipoReporte.SelectedIndex = 0;
+                Button boton = new Button
+                {
+                    Text = "   " + nombre,
 
-            // Actualiza los controles cuando cambia el tipo de reporte.
-            cboTipoReporte.SelectedIndexChanged +=
-                (s, e) => CambiarTipoReporte();
+                    Location =
+                        new Point(15, 160 + 49 * i),
 
-            panelFiltros.Controls.Add(cboTipoReporte);
+                    Size = new Size(180, 42),
 
+                    TextAlign =
+                        ContentAlignment.MiddleLeft,
 
-            // Filtros por fecha de inicio y finalización.
-            lblDesde = CrearEtiqueta("Desde:", 220, 15);
+                    FlatStyle = FlatStyle.Flat,
+
+                    Cursor = Cursors.Hand
+                };
+
+                boton.FlatAppearance.BorderSize = 0;
+
+                Redondear(boton, 9);
+
+                boton.Click += (s, e) =>
+                {
+                    PrepararSeccion(nombre);
+                };
+
+                botones[nombre] = boton;
+
+                panelLateral.Controls.Add(boton);
+            }
+        }
+
+        // ==================================================
+        // ENCABEZADO
+        // ==================================================
+
+        /// <summary>
+        /// Crea un encabezado compacto con el título
+        /// de la sección seleccionada.
+        /// </summary>
+        private void CrearEncabezado()
+        {
+            Panel encabezado = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = fondo
+            };
+
+            lblTituloSeccion = new Label
+            {
+                Text = "Reportes de ventas",
+                Location = new Point(5, 12),
+                AutoSize = true,
+                ForeColor = texto,
+                Font = new Font(
+                    "Segoe UI", 21F, FontStyle.Bold)
+            };
+
+            encabezado.Controls.Add(lblTituloSeccion);
+
+            encabezado.Controls.Add(new Label
+            {
+                Text = "Análisis del rendimiento comercial",
+                Location = new Point(7, 59),
+                AutoSize = true,
+                ForeColor = gris,
+                Font = new Font("Segoe UI", 10F)
+            });
+
+            contenido.Controls.Add(encabezado, 0, 0);
+        }
+
+        // ==================================================
+        // BARRA DE FILTROS
+        // ==================================================
+
+        /// <summary>
+        /// La primera fila contiene:
+        /// Desde, Hasta y un único selector contextual.
+        ///
+        /// La segunda fila contiene:
+        /// Buscar, Limpiar y Exportar PDF.
+        ///
+        /// No se modifica la estructura cuando
+        /// el usuario cambia de sección.
+        /// </summary>
+        private void CrearFiltros()
+        {
+            Panel tarjeta = PanelBlanco();
+
+            tarjeta.Dock = DockStyle.Fill;
+            tarjeta.Margin = new Padding(5, 0, 5, 12);
+            tarjeta.Padding = new Padding(18, 12, 18, 12);
+
+            TableLayoutPanel filas =
+                new TableLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 1,
+                    RowCount = 2
+                };
+
+            filas.ColumnStyles.Add(
+                new ColumnStyle(
+                    SizeType.Percent, 100F));
+
+            filas.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Absolute, 69F));
+
+            filas.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Percent, 100F));
+
+            TableLayoutPanel campos =
+                new TableLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 3,
+                    RowCount = 1
+                };
+
+            campos.ColumnStyles.Add(
+                new ColumnStyle(
+                    SizeType.Percent, 23F));
+
+            campos.ColumnStyles.Add(
+                new ColumnStyle(
+                    SizeType.Percent, 23F));
+
+            campos.ColumnStyles.Add(
+                new ColumnStyle(
+                    SizeType.Percent, 54F));
+
+            campos.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Percent, 100F));
 
             dtpDesde = new DateTimePicker
             {
-                Location = new Point(220, 40),
-                Size = new Size(120, 30),
-                Format = DateTimePickerFormat.Short
-            };
+                Format = DateTimePickerFormat.Short,
 
-            lblHasta = CrearEtiqueta("Hasta:", 350, 15);
+                Value = new DateTime(
+                    DateTime.Today.Year,
+                    DateTime.Today.Month,
+                    1)
+            };
 
             dtpHasta = new DateTimePicker
             {
-                Location = new Point(350, 40),
-                Size = new Size(120, 30),
-                Format = DateTimePickerFormat.Short
+                Format = DateTimePickerFormat.Short,
+                Value = DateTime.Today
             };
 
-            panelFiltros.Controls.Add(lblDesde);
-            panelFiltros.Controls.Add(dtpDesde);
-            panelFiltros.Controls.Add(lblHasta);
-            panelFiltros.Controls.Add(dtpHasta);
-
-
-            // Filtro por vendedor para el reporte de ventas.
-            lblVendedor = CrearEtiqueta("Vendedor:", 480, 15);
-
-            cboVendedor = new ComboBox
+            // El selector cambia de contenido,
+            // pero siempre conserva su posición.
+            cboFiltro = new ComboBox
             {
-                Location = new Point(480, 40),
-                Size = new Size(200, 30),
-                DropDownStyle = ComboBoxStyle.DropDownList
+                DropDownStyle =
+                    ComboBoxStyle.DropDownList,
+
+                FormattingEnabled = true
             };
 
-            panelFiltros.Controls.Add(lblVendedor);
-            panelFiltros.Controls.Add(cboVendedor);
+            campos.Controls.Add(
+                CampoFiltro("DESDE", dtpDesde),
+                0, 0);
 
+            campos.Controls.Add(
+                CampoFiltro("HASTA", dtpHasta),
+                1, 0);
 
-            // Campo de búsqueda para los movimientos de stock.
-            lblBuscarStock = CrearEtiqueta("Buscar Producto:", 480, 15);
+            TableLayoutPanel campoOpcion =
+                CampoFiltro("VENDEDOR", cboFiltro);
 
-            txtBuscarStock = new TextBox
-            {
-                Location = new Point(480, 40),
-                Size = new Size(220, 30)
-            };
+            lblNombreFiltro =
+                campoOpcion.Controls
+                .OfType<Label>()
+                .First();
 
-            panelFiltros.Controls.Add(lblBuscarStock);
-            panelFiltros.Controls.Add(txtBuscarStock);
+            campos.Controls.Add(
+                campoOpcion, 2, 0);
 
+            filas.Controls.Add(campos, 0, 0);
 
-            // Botón para ejecutar el reporte seleccionado.
-            btnBuscar = CrearBoton("BUSCAR", 720, 35, 95);
-            btnBuscar.Click += btnBuscar_Click;
-            panelFiltros.Controls.Add(btnBuscar);
-
-            // Botón para limpiar filtros y resultados.
-            btnLimpiar = CrearBotonSecundario("LIMPIAR", 825, 35, 95);
-            btnLimpiar.Click += btnLimpiar_Click;
-            panelFiltros.Controls.Add(btnLimpiar);
-
-            // Botón para exportar los resultados a PDF.
-            btnExportarPDF = new Button
-            {
-                Text = "DESCARGAR PDF",
-                Location = new Point(930, 35),
-                Size = new Size(95, 40),
-                BackColor = colorRosaOscuro,
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 8F, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-
-            btnExportarPDF.FlatAppearance.BorderSize = 0;
-            btnExportarPDF.Click += btnExportarPDF_Click;
-            panelFiltros.Controls.Add(btnExportarPDF);
-
-
-            // =====================================================
-            // 3. PANEL PRINCIPAL DE RESULTADOS
-            // =====================================================
-
-            // El panel ocupa el espacio restante debajo de los filtros.
-            Panel panelResultados = new Panel
-            {
-                Location = new Point(20, 265),
-                Size = new Size(
-                    ClientSize.Width - 40,
-                    ClientSize.Height - 285),
-
-                Anchor = AnchorStyles.Top |
-                         AnchorStyles.Bottom |
-                         AnchorStyles.Left |
-                         AnchorStyles.Right,
-
-                BackColor = Color.White,
-
-                // Permite desplazarse si el contenido supera la altura.
-                AutoScroll = true
-            };
-
-            Controls.Add(panelResultados);
-
-
-            // =====================================================
-            // 4. TARJETAS DE INDICADORES DE VENTAS
-            // =====================================================
-
-            // Cada tarjeta muestra un indicador calculado en Negocio.
-            lblFacturacion = CrearIndicador(
-                "FACTURACIÓN TOTAL", 20, 20);
-
-            lblCantidadVentas = CrearIndicador(
-                "CANTIDAD DE VENTAS", 190, 20);
-
-            lblTicketPromedio = CrearIndicador(
-                "TICKET PROMEDIO", 360, 20);
-
-            lblUnidadesVendidas = CrearIndicador(
-                "UNIDADES VENDIDAS", 530, 20);
-
-            lblVentaMaxima = CrearIndicador(
-                "VENTA MÁXIMA", 700, 20);
-
-            lblVentaMinima = CrearIndicador(
-                "VENTA MÍNIMA", 870, 20);
-
-            // Agrega las seis tarjetas al panel.
-            panelResultados.Controls.Add(lblFacturacion);
-            panelResultados.Controls.Add(lblCantidadVentas);
-            panelResultados.Controls.Add(lblTicketPromedio);
-            panelResultados.Controls.Add(lblUnidadesVendidas);
-            panelResultados.Controls.Add(lblVentaMaxima);
-            panelResultados.Controls.Add(lblVentaMinima);
-
-
-            // =====================================================
-            // 5. GRILLA DE RESULTADOS
-            // =====================================================
-
-            // Muestra las ventas o los movimientos de stock consultados.
-            dgvReporte = new DataGridView
-            {
-                Location = new Point(20, 115),
-
-                // Se adapta al ancho del panel y deja espacio debajo.
-                Size = new Size(
-                    panelResultados.ClientSize.Width - 40,
-                    150),
-
-                Anchor = AnchorStyles.Top |
-                         AnchorStyles.Left |
-                         AnchorStyles.Right
-            };
-
-            // Aplica las propiedades de visualización ya definidas.
-            ConfigurarGrilla(dgvReporte);
-
-            panelResultados.Controls.Add(dgvReporte);
-
-
-            // =====================================================
-            // 6. COMPARACIÓN MENSUAL
-            // =====================================================
-
-            // Muestra la facturación del mes seleccionado.
-            lblFacturacionActual = CrearEtiqueta(
-                "Facturación del mes seleccionado: pendiente",
-                23, 280);
-
-            // Muestra la facturación del mes anterior.
-            lblFacturacionAnterior = CrearEtiqueta(
-                "Facturación del mes anterior: pendiente",
-                23, 310);
-
-            // Muestra la diferencia monetaria entre ambos períodos.
-            lblDiferenciaFacturacion = CrearEtiqueta(
-                "Diferencia de facturación: pendiente",
-                23, 340);
-
-            // Muestra el porcentaje de variación mensual.
-            lblVariacionPorcentual = CrearEtiqueta(
-                "Variación porcentual: pendiente",
-                23, 370);
-
-            // Texto que ayuda a interpretar la variación mensual.
-            Label lblAyudaVariacion = new Label
-            {
-                Text = "Variación mensual: porcentaje de aumento o disminución " +
-                       "de la facturación respecto del mes anterior.",
-
-                Location = new Point(23, 400),
-                Size = new Size(980, 40),
-                AutoSize = false,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Font = new Font("Segoe UI", 9F),
-                ForeColor = colorTexto
-            };
-
-            // Agrega cada etiqueta una sola vez.
-            panelResultados.Controls.Add(lblFacturacionActual);
-            panelResultados.Controls.Add(lblFacturacionAnterior);
-            panelResultados.Controls.Add(lblDiferenciaFacturacion);
-            panelResultados.Controls.Add(lblVariacionPorcentual);
-            panelResultados.Controls.Add(lblAyudaVariacion);
-
-
-            // =====================================================
-            // 7. RESUMEN INFERIOR
-            // =====================================================
-
-            // Estas etiquetas se actualizan al ejecutar una consulta.
-            lblResumen1 = CrearEtiqueta("", 23, 445);
-            lblResumen2 = CrearEtiqueta("", 23, 475);
-
-            panelResultados.Controls.Add(lblResumen1);
-            panelResultados.Controls.Add(lblResumen2);
-        }
-
-
-        private void CambiarTipoReporte()
-        {
-            bool esVentas = cboTipoReporte.SelectedIndex == 0;
-
-            lblVendedor.Visible = esVentas;
-            cboVendedor.Visible = esVentas;
-
-            lblBuscarStock.Visible = !esVentas;
-            txtBuscarStock.Visible = !esVentas;
-
-            LimpiarResultados();
-        }
-
-        private void CargarVendedores()
-        {
-            try
-            {
-                listaUsuarios = cnUsuario.Listar();
-                var vendedores = listaUsuarios.Where(u => u.IdRol == 2).OrderBy(u => u.Apellido).ToList();
-                vendedores.Insert(0, new Usuario { IdUsuario = 0, Nombre = "Todos", Apellido = "los vendedores" });
-
-                cboVendedor.DataSource = vendedores;
-                cboVendedor.ValueMember = "IdUsuario";
-                cboVendedor.DisplayMember = "Apellido";
-                cboVendedor.Format += (s, e) =>
+            FlowLayoutPanel acciones =
+                new FlowLayoutPanel
                 {
-                    if (e.ListItem is Usuario u)
-                        e.Value = u.IdUsuario == 0 ? "Todos los vendedores" : $"{u.Apellido}, {u.Nombre}";
+                    Dock = DockStyle.Fill,
+
+                    FlowDirection =
+                        FlowDirection.RightToLeft,
+
+                    WrapContents = false,
+
+                    Padding =
+                        new Padding(0, 1, 0, 0)
                 };
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error al cargar vendedores: " + ex.Message, "Aura Beauty", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+
+            Button exportar =
+                Boton("Exportar PDF", 155);
+
+            Button limpiar =
+                Boton("Limpiar", 125);
+
+            Button buscar =
+                Boton("Buscar", 125);
+
+            buscar.Click += (s, e) => Buscar();
+
+            limpiar.Click += (s, e) => Limpiar();
+
+            exportar.Click += (s, e) => ExportarPdf();
+
+            acciones.Controls.Add(exportar);
+            acciones.Controls.Add(limpiar);
+            acciones.Controls.Add(buscar);
+
+            filas.Controls.Add(acciones, 0, 1);
+
+            tarjeta.Controls.Add(filas);
+
+            contenido.Controls.Add(tarjeta, 0, 1);
         }
 
-        private void btnBuscar_Click(object sender, EventArgs e)
+        /// <summary>
+        /// Crea una etiqueta con su control debajo.
+        /// Mantiene igual altura en los tres filtros.
+        /// </summary>
+        private TableLayoutPanel CampoFiltro(
+            string titulo,
+            Control control)
         {
-            try
-            {
-                if (cboTipoReporte.SelectedIndex == 0)
+            TableLayoutPanel campo =
+                new TableLayoutPanel
                 {
-                    int? idUsuario =
-                        (cboVendedor.SelectedItem as Usuario)?.IdUsuario;
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 1,
+                    RowCount = 2,
+                    Margin = new Padding(5, 0, 12, 0)
+                };
 
-                    if (idUsuario == 0)
-                        idUsuario = null;
+            campo.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Absolute, 27F));
 
+            campo.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Percent, 100F));
 
-                    // OBTENER RESUMEN CALCULADO EN NEGOCIO
-                    ResumenVentas resumen =
-                        cnReporte.ObtenerResumenVentas(
-                            dtpDesde.Value,
-                            dtpHasta.Value,
-                            idUsuario);
+            Label etiqueta = new Label
+            {
+                Text = titulo,
+                Dock = DockStyle.Fill,
 
+                TextAlign =
+                    ContentAlignment.MiddleLeft,
 
-                    // MOSTRAR INDICADORES
+                ForeColor = gris,
 
-                    lblFacturacion.Text =
-                        "FACTURACIÓN TOTAL\n$ " +
-                        resumen.FacturacionTotal.ToString("N2");
+                Font = new Font(
+                    "Segoe UI",
+                    8.5F,
+                    FontStyle.Bold)
+            };
 
-                    lblCantidadVentas.Text =
-                        "CANTIDAD DE VENTAS\n" +
-                        resumen.CantidadVentas.ToString();
+            control.Dock = DockStyle.Top;
+            control.Margin = new Padding(0, 4, 0, 0);
 
-                    lblTicketPromedio.Text =
-                        "TICKET PROMEDIO\n$ " +
-                        resumen.TicketPromedio.ToString("N2");
+            campo.Controls.Add(etiqueta, 0, 0);
+            campo.Controls.Add(control, 0, 1);
 
-                    lblUnidadesVendidas.Text =
-                        "UNIDADES VENDIDAS\n" +
-                        resumen.UnidadesVendidas.ToString();
+            return campo;
+        }
 
-                    lblVentaMaxima.Text =
-                        "VENTA MÁXIMA\n$ " +
-                        resumen.VentaMaxima.ToString("N2");
+        // ==================================================
+        // TARJETAS
+        // ==================================================
 
-                    lblVentaMinima.Text =
-                        "VENTA MÍNIMA\n$ " +
-                        resumen.VentaMinima.ToString("N2");
+        /// <summary>
+        /// Crea las seis tarjetas estadísticas.
+        /// Se distribuyen en dos filas de tres columnas.
+        /// </summary>
+        private void CrearTarjetas()
+        {
+            TableLayoutPanel tabla =
+                new TableLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 3,
+                    RowCount = 2,
+                    Margin = new Padding(0, 4, 0, 9)
+                };
 
-                  
-                    // Usa la fecha final seleccionada para determinar el mes actual.
-                    DateTime fechaReferencia = dtpHasta.Value;
+            for (int columna = 0; columna < 3; columna++)
+            {
+                tabla.ColumnStyles.Add(
+                    new ColumnStyle(
+                        SizeType.Percent, 100F / 3F));
+            }
 
-                    // Calcula el primer día del mes actual.
-                    DateTime inicioMesActual = new DateTime(
-                        fechaReferencia.Year,
-                        fechaReferencia.Month,
-                        1);
+            tabla.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Percent, 50F));
 
-                    // Calcula el último día del mes actual.
-                    DateTime finMesActual = inicioMesActual
-                        .AddMonths(1)
-                        .AddDays(-1);
+            tabla.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Percent, 50F));
 
-                    // Calcula el primer día del mes anterior.
-                    DateTime inicioMesAnterior = inicioMesActual.AddMonths(-1);
+            for (int i = 0; i < 6; i++)
+            {
+                Panel panel = PanelBlanco();
 
-                    // Calcula el último día del mes anterior.
-                    DateTime finMesAnterior = inicioMesActual.AddDays(-1);
+                panel.Dock = DockStyle.Fill;
 
+                panel.Margin =
+                    new Padding(5, 4, 7, 8);
 
-                    // Obtiene los indicadores comparativos desde la capa Negocio.
-                    ComparacionVentas comparacion = cnReporte.CompararVentas(
-                        inicioMesActual,
-                        finMesActual,
-                        inicioMesAnterior,
-                        finMesAnterior,
-                        idUsuario);
+                panel.Padding =
+                    new Padding(16, 10, 10, 8);
 
-                    // Muestra la facturación del mes seleccionado.
-                    lblFacturacionActual.Text =
-                        "FACTURACIÓN DEL MES ACTUAL: $ " +
-                        comparacion.FacturacionActual.ToString("N2");
-
-                    // Muestra la facturación del mes anterior.
-                    lblFacturacionAnterior.Text =
-                        "FACTURACIÓN DEL MES ANTERIOR: $ " +
-                        comparacion.FacturacionAnterior.ToString("N2");
-
-                    // Muestra la diferencia monetaria entre ambos meses.
-                    lblDiferenciaFacturacion.Text =
-                        "DIFERENCIA: $ " +
-                        comparacion.DiferenciaFacturacion.ToString("N2");
-
-                    // Muestra la variación porcentual, si se puede calcular.
-                    lblVariacionPorcentual.Text =
-                        comparacion.VariacionPorcentual.HasValue
-                            ? "VARIACIÓN MENSUAL: " +
-                              comparacion.VariacionPorcentual.Value.ToString("N2") + "%"
-                            : "VARIACIÓN MENSUAL: No calculable (mes anterior sin facturación)";
-
-
-
-
-                    // OBTENER VENTAS PARA LA GRILLA
-                    listaReporteVentas =
-                        cnReporte.ObtenerVentasAnalisis(
-                            dtpDesde.Value,
-                            dtpHasta.Value,
-                            idUsuario);
-
-
-                    var datos = listaReporteVentas.Select(v => new
+                TableLayoutPanel interior =
+                    new TableLayoutPanel
                     {
-                        v.IdVenta,
-                        Fecha = v.FechaVenta.ToString("dd/MM/yyyy HH:mm"),
-                        Total = v.Total.ToString("N2")
-                    }).ToList();
+                        Dock = DockStyle.Fill,
+                        ColumnCount = 1,
+                        RowCount = 2
+                    };
 
+                interior.RowStyles.Add(
+                    new RowStyle(
+                        SizeType.Percent, 38F));
 
-                    dgvReporte.AutoGenerateColumns = true;
-                    dgvReporte.DataSource = datos;
+                interior.RowStyles.Add(
+                    new RowStyle(
+                        SizeType.Percent, 62F));
 
-                    // RESUMEN INFERIOR
-                    lblResumen1.Text =
-                        "Cantidad de ventas: " +
-                        resumen.CantidadVentas;
+                titulos[i] = new Label
+                {
+                    Dock = DockStyle.Fill,
+                    ForeColor = gris,
 
-                    lblResumen2.Text =
-                        "TOTAL: $ " +
-                        resumen.FacturacionTotal.ToString("N2");
+                    Font = new Font(
+                        "Segoe UI",
+                        8.7F,
+                        FontStyle.Bold),
 
-                    lblResumen2.ForeColor = colorRosaOscuro;
+                    TextAlign =
+                        ContentAlignment.MiddleLeft
+                };
+
+                valores[i] = new Label
+                {
+                    Dock = DockStyle.Fill,
+                    ForeColor = texto,
+
+                    Font = new Font(
+                        "Segoe UI",
+                        16F,
+                        FontStyle.Bold),
+
+                    AutoEllipsis = true,
+
+                    TextAlign =
+                        ContentAlignment.MiddleLeft
+                };
+
+                interior.Controls.Add(
+                    titulos[i], 0, 0);
+
+                interior.Controls.Add(
+                    valores[i], 0, 1);
+
+                panel.Controls.Add(interior);
+
+                tabla.Controls.Add(
+                    panel, i % 3, i / 3);
+            }
+
+            contenido.Controls.Add(tabla, 0, 2);
+        }
+
+        // ==================================================
+        // GRÁFICOS
+        // ==================================================
+
+        /// <summary>
+        /// Crea dos gráficos con distribución porcentual.
+        /// No utiliza coordenadas absolutas para ubicarlos.
+        /// </summary>
+        private void CrearGraficos()
+        {
+            TableLayoutPanel dos =
+                new TableLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 2,
+                    RowCount = 1,
+                    Margin = new Padding(0, 0, 0, 12)
+                };
+
+            dos.ColumnStyles.Add(
+                new ColumnStyle(
+                    SizeType.Percent, 50F));
+
+            dos.ColumnStyles.Add(
+                new ColumnStyle(
+                    SizeType.Percent, 50F));
+
+            dos.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Percent, 100F));
+
+            for (int i = 0; i < 2; i++)
+            {
+                Panel panel = PanelBlanco();
+
+                panel.Dock = DockStyle.Fill;
+
+                panel.Margin = i == 0
+                    ? new Padding(5, 0, 7, 0)
+                    : new Padding(7, 0, 5, 0);
+
+                panel.Padding = new Padding(12);
+
+                TableLayoutPanel interior =
+                    new TableLayoutPanel
+                    {
+                        Dock = DockStyle.Fill,
+                        ColumnCount = 1,
+                        RowCount = 2
+                    };
+
+                interior.RowStyles.Add(
+                    new RowStyle(
+                        SizeType.Absolute, 40F));
+
+                interior.RowStyles.Add(
+                    new RowStyle(
+                        SizeType.Percent, 100F));
+
+                Label titulo = new Label
+                {
+                    Dock = DockStyle.Fill,
+
+                    TextAlign =
+                        ContentAlignment.MiddleLeft,
+
+                    ForeColor = texto,
+
+                    Font = new Font(
+                        "Segoe UI",
+                        12F,
+                        FontStyle.Bold)
+                };
+
+                Chart grafico = CrearGrafico();
+
+                grafico.Dock = DockStyle.Fill;
+
+                interior.Controls.Add(titulo, 0, 0);
+                interior.Controls.Add(grafico, 0, 1);
+
+                panel.Controls.Add(interior);
+
+                dos.Controls.Add(panel, i, 0);
+
+                if (i == 0)
+                {
+                    lblTituloGrafico1 = titulo;
+                    grafico1 = grafico;
                 }
                 else
                 {
-                    CargarReporteMovimientosStock();
+                    lblTituloGrafico2 = titulo;
+                    grafico2 = grafico;
                 }
             }
+
+            contenido.Controls.Add(dos, 0, 3);
+        }
+
+        /// <summary>
+        /// Crea un gráfico de columnas con ancho moderado
+        /// y etiquetas de productos legibles.
+        /// </summary>
+        private Chart CrearGrafico()
+        {
+            Chart grafico = new Chart
+            {
+                BackColor = Color.White,
+                Margin = Padding.Empty
+            };
+
+            ChartArea area =
+                new ChartArea("Principal")
+                {
+                    BackColor = Color.White
+                };
+
+            area.AxisX.MajorGrid.Enabled = false;
+
+            area.AxisY.MajorGrid.LineColor = linea;
+
+            area.AxisX.LineColor = linea;
+            area.AxisY.LineColor = linea;
+
+            area.AxisX.LabelStyle.ForeColor = gris;
+            area.AxisY.LabelStyle.ForeColor = gris;
+
+            area.AxisX.LabelStyle.Font =
+                new Font("Segoe UI", 8F);
+
+            area.AxisY.LabelStyle.Font =
+                new Font("Segoe UI", 8F);
+
+            area.AxisX.Interval = 1;
+
+            area.AxisX.LabelStyle.Angle = -30;
+
+            grafico.ChartAreas.Add(area);
+
+            Series serie = new Series("Valores")
+            {
+                ChartType = SeriesChartType.Column,
+                XValueType = ChartValueType.String,
+                YValueType = ChartValueType.Double,
+                Color = rosa
+            };
+
+            serie.SetCustomProperty(
+                "MaxPixelPointWidth", "60");
+
+            grafico.Series.Add(serie);
+
+            return grafico;
+        }
+
+        // ==================================================
+        // TABLA DE DETALLE
+        // ==================================================
+
+        /// <summary>
+        /// Crea el DataGridView del reporte.
+        /// Es de solo lectura y permite desplazamiento.
+        /// </summary>
+        private void CrearTabla()
+        {
+            Panel tarjeta = PanelBlanco();
+
+            tarjeta.Dock = DockStyle.Fill;
+            tarjeta.Margin = new Padding(5, 0, 5, 5);
+            tarjeta.Padding = new Padding(15, 12, 15, 10);
+
+            TableLayoutPanel interior =
+                new TableLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 1,
+                    RowCount = 3
+                };
+
+            interior.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Absolute, 36F));
+
+            interior.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Percent, 100F));
+
+            interior.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Absolute, 46F));
+
+            interior.Controls.Add(new Label
+            {
+                Text = "Detalle del reporte",
+                Dock = DockStyle.Fill,
+                ForeColor = texto,
+
+                Font = new Font(
+                    "Segoe UI",
+                    12F,
+                    FontStyle.Bold)
+            }, 0, 0);
+
+            dgvResultados = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.None,
+
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                RowHeadersVisible = false,
+
+                SelectionMode =
+                    DataGridViewSelectionMode.FullRowSelect,
+
+                AutoSizeColumnsMode =
+                    DataGridViewAutoSizeColumnsMode.Fill,
+
+                EnableHeadersVisualStyles = false
+            };
+
+            dgvResultados.ColumnHeadersHeight = 34;
+            dgvResultados.RowTemplate.Height = 29;
+
+            dgvResultados.ColumnHeadersDefaultCellStyle.BackColor =
+                rosaClaro;
+
+            dgvResultados.ColumnHeadersDefaultCellStyle.ForeColor =
+                texto;
+
+            dgvResultados.ColumnHeadersDefaultCellStyle.Font =
+                new Font("Segoe UI", 9F, FontStyle.Bold);
+
+            dgvResultados.DefaultCellStyle.SelectionBackColor =
+                rosaClaro;
+
+            dgvResultados.DefaultCellStyle.SelectionForeColor =
+                texto;
+
+            dgvResultados.AlternatingRowsDefaultCellStyle.BackColor =
+                fondo;
+
+            lblEstado = new Label
+            {
+                Dock = DockStyle.Fill,
+                ForeColor = gris,
+
+                Font = new Font("Segoe UI", 8.5F),
+
+                TextAlign =
+                    ContentAlignment.MiddleLeft,
+
+                AutoEllipsis = true
+            };
+
+            interior.Controls.Add(dgvResultados, 0, 1);
+            interior.Controls.Add(lblEstado, 0, 2);
+
+            tarjeta.Controls.Add(interior);
+
+            contenido.Controls.Add(tarjeta, 0, 4);
+        }
+
+        // ==================================================
+        // SELECCIÓN DE SECCIÓN
+        // ==================================================
+
+        /// <summary>
+        /// Cambia los filtros y los títulos, sin modificar
+        /// el tamaño de los controles ni los datos SQL.
+        /// </summary>
+        private void PrepararSeccion(string nueva)
+        {
+            seccionActual = nueva;
+
+            foreach (var par in botones)
+            {
+                bool activo = par.Key == nueva;
+
+                par.Value.BackColor =
+                    activo ? rosa : beige;
+
+                par.Value.ForeColor =
+                    activo ? Color.White : texto;
+
+                par.Value.Font = new Font(
+                    "Segoe UI",
+                    10F,
+
+                    activo
+                        ? FontStyle.Bold
+                        : FontStyle.Regular);
+            }
+
+            lblTituloSeccion.Text =
+                "Reportes de " +
+                nueva.ToLowerInvariant();
+
+            lblNombreFiltro.Text =
+                nueva == "Ventas" ||
+                nueva == "Vendedores"
+                    ? "VENDEDOR"
+                    : nueva == "Productos" ||
+                      nueva == "Stock"
+                        ? "PRODUCTO"
+                        : nueva == "Categorías"
+                            ? "CATEGORÍA"
+                            : nueva == "Solicitudes"
+                                ? "ESTADO"
+                                : "CLIENTE";
+
+            ultimoReporte = null;
+
+            LimpiarResultadosVisuales();
+
+            try
+            {
+                List<OpcionReporte> opciones =
+                    negocio.ObtenerOpciones(nueva);
+
+                cboFiltro.DataSource = null;
+
+                cboFiltro.DisplayMember = "Nombre";
+                cboFiltro.ValueMember = "Id";
+
+                cboFiltro.DataSource = opciones;
+
+                if (cboFiltro.Items.Count > 0)
+                    cboFiltro.SelectedIndex = 0;
+
+                lblEstado.Text =
+                    "Seleccioná los filtros y presioná Buscar.";
+            }
             catch (Exception ex)
+            {
+                cboFiltro.DataSource = null;
+
+                lblEstado.Text =
+                    "No se pudo cargar el filtro: " +
+                    ex.Message;
+            }
+        }
+
+        // ==================================================
+        // LIMPIAR
+        // ==================================================
+
+        /// <summary>
+        /// Restablece fechas y selector actual.
+        /// No modifica registros de la base de datos.
+        /// </summary>
+        private void Limpiar()
+        {
+            dtpDesde.Value = new DateTime(
+                DateTime.Today.Year,
+                DateTime.Today.Month,
+                1);
+
+            dtpHasta.Value = DateTime.Today;
+
+            if (cboFiltro.Items.Count > 0)
+                cboFiltro.SelectedIndex = 0;
+
+            ultimoReporte = null;
+
+            LimpiarResultadosVisuales();
+
+            lblEstado.Text =
+                "Sin consulta realizada.";
+        }
+
+        /// <summary>
+        /// Limpia las tarjetas, gráficos y tabla.
+        /// </summary>
+        private void LimpiarResultadosVisuales()
+        {
+            for (int i = 0; i < 6; i++)
+            {
+                titulos[i].Text = "";
+                valores[i].Text = "";
+            }
+
+            grafico1.Series[0].Points.Clear();
+            grafico2.Series[0].Points.Clear();
+
+            lblTituloGrafico1.Text = "";
+            lblTituloGrafico2.Text = "";
+
+            dgvResultados.DataSource = null;
+            lblEstado.Text = "";
+        }
+
+        // ==================================================
+        // BUSCAR
+        // ==================================================
+
+        /// <summary>
+        /// Obtiene resultados desde un único método
+        /// de Negocio y actualiza los controles.
+        ///
+        /// Si una consulta falla, informa el error
+        /// sin cerrar el formulario.
+        /// </summary>
+        private void Buscar()
+        {
+            if (dtpDesde.Value.Date >
+                dtpHasta.Value.Date)
             {
                 MessageBox.Show(
-                    "Error al buscar: " + ex.Message,
-                    "Aura Beauty",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-            }
-        }
+                    "La fecha Desde no puede superar a Hasta.",
+                    "Aura Beauty");
 
-        private void CargarReporteMovimientosStock()
-        {
+                return;
+            }
+
+            OpcionReporte opcion =
+                cboFiltro.SelectedItem as OpcionReporte;
+
+            int id = opcion == null ? 0 : opcion.Id;
+
             try
             {
-                string mensaje;
-                dtMovimientosStock = cnReporte.ObtenerReporteMovimientosStock(dtpDesde.Value, dtpHasta.Value, out mensaje);
+                this.UseWaitCursor = true;
 
-                if (!string.IsNullOrEmpty(mensaje))
-                {
-                    MessageBox.Show("Aviso de Base de Datos: " + mensaje, "Aura Beauty", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
+                VistaReporte nuevo =
+                    negocio.ConstruirReporte(
+                        seccionActual,
+                        dtpDesde.Value.Date,
+                        dtpHasta.Value.Date,
+                        id);
 
-                if (dtMovimientosStock == null || dtMovimientosStock.Rows.Count == 0)
-                {
-                    dgvReporte.DataSource = null;
-                    lblResumen1.Text = "Total de movimientos: 0";
-                    lblResumen2.Text = "";
-                    MessageBox.Show("No se encontraron movimientos registrados en el rango de fechas seleccionado.", "Aura Beauty", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
+                PintarReporte(nuevo);
 
-                string filtro = txtBuscarStock.Text.Trim().Replace("'", "''");
-                DataView dv = dtMovimientosStock.DefaultView;
-
-                if (!string.IsNullOrEmpty(filtro))
-                {
-                    List<string> condiciones = new List<string>();
-                    foreach (DataColumn col in dtMovimientosStock.Columns)
-                    {
-                        if (col.DataType == typeof(string))
-                        {
-                            condiciones.Add($"[{col.ColumnName}] LIKE '%{filtro}%'");
-                        }
-                    }
-
-                    if (condiciones.Count > 0)
-                    {
-                        dv.RowFilter = string.Join(" OR ", condiciones);
-                    }
-                }
-                else
-                {
-                    dv.RowFilter = string.Empty;
-                }
-
-                DataTable dtFiltrada = dv.ToTable();
-                dgvReporte.AutoGenerateColumns = true;
-                dgvReporte.DataSource = dtFiltrada;
-
-                lblResumen1.Text = "Total de movimientos: " + dtFiltrada.Rows.Count;
-                lblResumen2.Text = "";
+                ultimoReporte = nuevo;
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al cargar movimientos de stock: " + ex.Message, "Aura Beauty", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ultimoReporte = null;
+
+                lblEstado.Text =
+                    "Error en " +
+                    seccionActual + ": " + ex.Message;
+
+                MessageBox.Show(
+                    "No se pudo consultar el reporte de " +
+                    seccionActual + ":\n" + ex.Message,
+
+                    "Aura Beauty",
+
+                    MessageBoxButtons.OK,
+
+                    MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                this.UseWaitCursor = false;
             }
         }
 
-        private void btnExportarPDF_Click(object sender, EventArgs e)
+        // ==================================================
+        // MOSTRAR RESULTADOS
+        // ==================================================
+
+        /// <summary>
+        /// Asigna a los controles los resultados
+        /// que recibe de Negocio.
+        ///
+        /// No calcula porcentajes ni acumula ventas.
+        /// </summary>
+        private void PintarReporte(VistaReporte vista)
         {
-            if (dgvReporte.Rows.Count < 1)
+            for (int i = 0; i < 6; i++)
             {
-                MessageBox.Show("No hay datos cargados para exportar.", "Aura Beauty", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                titulos[i].Text =
+                    vista.TitulosIndicadores[i] ?? "";
+
+                valores[i].Text =
+                    vista.ValoresIndicadores[i] ?? "";
+
+                float tamano =
+                    valores[i].Text.Length > 21
+                        ? 11F
+                        : valores[i].Text.Length > 14
+                            ? 13F
+                            : 16F;
+
+                valores[i].Font =
+                    new Font(
+                        "Segoe UI",
+                        tamano,
+                        FontStyle.Bold);
+            }
+
+            lblTituloGrafico1.Text =
+                vista.TituloGrafico1;
+
+            lblTituloGrafico2.Text =
+                vista.TituloGrafico2;
+
+            PintarGrafico(
+                grafico1,
+                vista.PuntosGrafico1,
+                vista.Grafico1EsCantidad);
+
+            PintarGrafico(
+                grafico2,
+                vista.PuntosGrafico2,
+                vista.Grafico2EsCantidad);
+
+            dgvResultados.DataSource = vista.Detalle;
+
+            lblEstado.Text =
+                "Filas: " +
+                vista.Detalle.Rows.Count +
+                " | " +
+                (vista.Aviso ?? "");
+
+            lblEstado.Refresh();
+        }
+
+        // ==================================================
+        // ESCALA DE LOS GRÁFICOS
+        // ==================================================
+
+        /// <summary>
+        /// Cuando el gráfico representa cantidades
+        /// utiliza únicamente marcas enteras.
+        ///
+        /// Cuando representa dinero, el eje puede
+        /// ajustarse automáticamente al importe.
+        ///
+        /// El método modifica solo la presentación.
+        /// </summary>
+        private void PintarGrafico(
+            Chart grafico,
+            List<PuntoReporte> puntos,
+            bool entero)
+        {
+            Series serie = grafico.Series[0];
+
+            serie.Points.Clear();
+
+            decimal mayor = 0m;
+
+            foreach (PuntoReporte punto in puntos)
+            {
+                decimal valor = punto.Valor < 0m
+                    ? 0m
+                    : punto.Valor;
+
+                string corto =
+                    punto.Etiqueta ?? "Sin nombre";
+
+                if (corto.Length > 18)
+                {
+                    corto =
+                        corto.Substring(0, 15) + "...";
+                }
+
+                int indice =
+                    serie.Points.AddXY(
+                        corto,
+                        (double)valor);
+
+                serie.Points[indice].ToolTip =
+                    punto.Etiqueta + ": " +
+                    (entero
+                        ? valor.ToString("N0")
+                        : valor.ToString("N2"));
+
+                if (valor > mayor)
+                    mayor = valor;
+            }
+
+            Axis eje =
+                grafico.ChartAreas[0].AxisY;
+
+            eje.Minimum = 0;
+            eje.LabelStyle.Format = "N0";
+            eje.IsStartedFromZero = true;
+
+            if (entero)
+            {
+                int maximo =
+                    (int)Math.Min(
+                        int.MaxValue,
+                        mayor);
+
+                int paso =
+                    maximo <= 8 ? 1 :
+                    maximo <= 20 ? 2 :
+                    maximo <= 50 ? 5 :
+                    maximo <= 100 ? 10 :
+                    maximo <= 250 ? 25 :
+                    maximo <= 500 ? 50 : 100;
+
+                eje.Interval = paso;
+
+                eje.Maximum = Math.Max(
+                    paso * 3,
+
+                    (int)(
+                        Math.Ceiling(
+                            (maximo + 1.0) / paso) *
+                        paso));
+
+                serie.IsValueShownAsLabel = true;
+                serie.LabelFormat = "N0";
+            }
+            else
+            {
+                eje.Maximum = double.NaN;
+                eje.Interval = 0;
+
+                serie.IsValueShownAsLabel = false;
+            }
+        }
+
+        // ==================================================
+        // EXPORTAR PDF
+        // ==================================================
+
+        /// <summary>
+        /// Exporta indicadores y filas del reporte.
+        ///
+        /// Utiliza PdfSharp, ya referenciado
+        /// por el proyecto.
+        ///
+        /// No modifica la base de datos.
+        /// </summary>
+        private void ExportarPdf()
+        {
+            if (ultimoReporte == null)
+            {
+                MessageBox.Show(
+                    "Primero realizá una búsqueda.",
+                    "Aura Beauty");
+
                 return;
             }
 
             try
             {
-                bool esVentas = cboTipoReporte.SelectedIndex == 0;
-
-                PdfDocument document = new PdfDocument();
-                document.Info.Title = esVentas ? "Reporte de Ventas" : "Reporte de Movimientos de Stock";
-
-                PdfPage page = document.AddPage();
-                page.Size = PdfSharp.PageSize.A4;
-                XGraphics gfx = XGraphics.FromPdfPage(page);
-
-                XFont fontTitulo = new XFont("Segoe UI", 18, XFontStyleEx.Bold);
-                XFont fontSubtitulo = new XFont("Segoe UI", 10, XFontStyleEx.Regular);
-                XFont fontHeaderTabla = new XFont("Segoe UI", 9, XFontStyleEx.Bold);
-                XFont fontTexto = new XFont("Segoe UI", 8.5, XFontStyleEx.Regular);
-                XFont fontTotal = new XFont("Segoe UI", 11, XFontStyleEx.Bold);
-
-                // Banner Encabezado
-                gfx.DrawRectangle(new XSolidBrush(colorRosa), 20, 20, page.Width - 40, 50);
-                gfx.DrawString("AURA BEAUTY", fontTitulo, XBrushes.White, new XRect(20, 25, page.Width - 40, 25), XStringFormats.TopCenter);
-                gfx.DrawString(esVentas ? "Reporte Oficial de Ventas" : "Reporte de Movimientos de Stock (Ingresos/Egresos)", fontSubtitulo, XBrushes.White, new XRect(20, 48, page.Width - 40, 20), XStringFormats.TopCenter);
-
-                int y = 85;
-                gfx.DrawRectangle(new XPen(colorRosa, 0.5), new XSolidBrush(Color.FromArgb(255, 249, 248)), 20, y, page.Width - 40, 35);
-                gfx.DrawString($"Rango consultado: {dtpDesde.Value:dd/MM/yyyy} al {dtpHasta.Value:dd/MM/yyyy}", fontTexto, XBrushes.Black, 30, y + 20);
-                gfx.DrawString($"Emisión: {DateTime.Now:dd/MM/yyyy HH:mm:ss}", fontTexto, XBrushes.Black, page.Width - 220, y + 20);
-
-                y += 50;
-                gfx.DrawRectangle(new XSolidBrush(colorRosaOscuro), 20, y, page.Width - 40, 20);
-
-                if (esVentas)
+                using (PdfDocument documento =
+                    new PdfDocument())
                 {
-                    gfx.DrawString("N.º Venta", fontHeaderTabla, XBrushes.White, 25, y + 14);
-                    gfx.DrawString("Fecha", fontHeaderTabla, XBrushes.White, 85, y + 14);
-                    gfx.DrawString("Comprobante", fontHeaderTabla, XBrushes.White, 185, y + 14);
-                    gfx.DrawString("Vendedor", fontHeaderTabla, XBrushes.White, 285, y + 14);
-                    gfx.DrawString("Cliente", fontHeaderTabla, XBrushes.White, 400, y + 14);
-                    gfx.DrawString("Total", fontHeaderTabla, XBrushes.White, page.Width - 75, y + 14);
-                }
-                else
-                {
-                    gfx.DrawString("N.º Solicitud", fontHeaderTabla, XBrushes.White, 25, y + 14);
-                    gfx.DrawString("Producto", fontHeaderTabla, XBrushes.White, 90, y + 14);
-                    gfx.DrawString("Tipo Mov.", fontHeaderTabla, XBrushes.White, 230, y + 14);
-                    gfx.DrawString("Cantidad", fontHeaderTabla, XBrushes.White, 310, y + 14);
-                    gfx.DrawString("Motivo", fontHeaderTabla, XBrushes.White, 380, y + 14);
-                    gfx.DrawString("Estado", fontHeaderTabla, XBrushes.White, 480, y + 14);
-                }
+                    documento.Info.Title =
+                        "Aura Beauty - " + seccionActual;
 
-                y += 20;
+                    PdfPage pagina =
+                        documento.AddPage();
 
-                foreach (DataGridViewRow row in dgvReporte.Rows)
-                {
-                    if (!row.IsNewRow)
+                    XGraphics grafica =
+                        XGraphics.FromPdfPage(pagina);
+
+                    XFont fuenteTitulo = new XFont(
+                        "Segoe UI",
+                        16,
+                        XFontStyleEx.Bold);
+
+                    XFont fuenteNormal = new XFont(
+                        "Segoe UI",
+                        9,
+                        XFontStyleEx.Regular);
+
+                    int y = 45;
+
+                    grafica.DrawString(
+                        "AURA BEAUTY - " +
+                        seccionActual.ToUpperInvariant(),
+
+                        fuenteTitulo,
+                        XBrushes.Black,
+                        new XPoint(38, y));
+
+                    y += 30;
+
+                    grafica.DrawString(
+                        "Desde " +
+                        dtpDesde.Value.ToString("dd/MM/yyyy") +
+                        " hasta " +
+                        dtpHasta.Value.ToString("dd/MM/yyyy"),
+
+                        fuenteNormal,
+                        XBrushes.Black,
+                        new XPoint(38, y));
+
+                    y += 27;
+
+                    for (int i = 0; i < 6; i++)
                     {
-                        gfx.DrawLine(new XPen(XColors.LightGray, 0.5), 20, y + 18, page.Width - 20, y + 18);
+                        grafica.DrawString(
+                            Recortar(
+                                titulos[i].Text +
+                                ": " + valores[i].Text,
+                                95),
 
-                        if (esVentas)
-                        {
-                            gfx.DrawString(ObtenerValorCelda(row, "IdVenta"), fontTexto, XBrushes.Black, 25, y + 13);
-                            gfx.DrawString(ObtenerValorCelda(row, "Fecha"), fontTexto, XBrushes.Black, 85, y + 13);
-                            gfx.DrawString(ObtenerValorCelda(row, "NroFactura"), fontTexto, XBrushes.Black, 185, y + 13);
-                            gfx.DrawString(ObtenerValorCelda(row, "Vendedor"), fontTexto, XBrushes.Black, 285, y + 13);
-                            gfx.DrawString(ObtenerValorCelda(row, "Cliente"), fontTexto, XBrushes.Black, 400, y + 13);
-                            gfx.DrawString($"$ {ObtenerValorCelda(row, "Total")}", fontTexto, XBrushes.Black, page.Width - 75, y + 13);
-                        }
-                        else
-                        {
-                            gfx.DrawString(ObtenerValorCelda(row, "IdSolicitud"), fontTexto, XBrushes.Black, 25, y + 13);
-                            gfx.DrawString(ObtenerValorCelda(row, "Producto"), fontTexto, XBrushes.Black, 90, y + 13);
+                            fuenteNormal,
+                            XBrushes.Black,
+                            new XPoint(38, y));
 
-                            string tipoMov = ObtenerValorCelda(row, "TipoMovimiento");
-                            XBrush brushTipo = tipoMov.ToUpper().Contains("INGRESO") ? XBrushes.Green : XBrushes.Red;
-                            gfx.DrawString(tipoMov, fontTexto, brushTipo, 230, y + 13);
-
-                            gfx.DrawString(ObtenerValorCelda(row, "Cantidad"), fontTexto, XBrushes.Black, 310, y + 13);
-                            gfx.DrawString(ObtenerValorCelda(row, "Motivo"), fontTexto, XBrushes.Black, 380, y + 13);
-                            gfx.DrawString(ObtenerValorCelda(row, "Estado"), fontTexto, XBrushes.Black, 480, y + 13);
-                        }
-
-                        y += 20;
-
-                        if (y > page.Height - 80)
-                        {
-                            page = document.AddPage();
-                            page.Size = PdfSharp.PageSize.A4;
-                            gfx = XGraphics.FromPdfPage(page);
-                            y = 40;
-                        }
+                        y += 22;
                     }
+
+                    y += 12;
+
+                    grafica.DrawString(
+                        "DETALLE",
+                        fuenteTitulo,
+                        XBrushes.Black,
+                        new XPoint(38, y));
+
+                    y += 24;
+
+                    foreach (System.Data.DataRow fila in
+                        ultimoReporte.Detalle.Rows)
+                    {
+                        if (y >= 780)
+                        {
+                            pagina = documento.AddPage();
+
+                            grafica.Dispose();
+
+                            grafica =
+                                XGraphics.FromPdfPage(pagina);
+
+                            y = 45;
+                        }
+
+                        string linea = string.Join(
+                            " | ",
+                            fila.ItemArray.Select(
+                                celda => Convert.ToString(celda)));
+
+                        grafica.DrawString(
+                            Recortar(linea, 102),
+
+                            fuenteNormal,
+                            XBrushes.Black,
+                            new XPoint(38, y));
+
+                        y += 18;
+                    }
+
+                    grafica.Dispose();
+
+                    string ruta = Path.Combine(
+                        Path.GetTempPath(),
+
+                        "AuraBeauty_" +
+                        seccionActual + "_" +
+                        DateTime.Now.ToString(
+                            "yyyyMMdd_HHmmss") +
+                        ".pdf");
+
+                    documento.Save(ruta);
+
+                    Process.Start(
+                        new ProcessStartInfo(ruta)
+                        {
+                            UseShellExecute = true
+                        });
                 }
-
-                // Cuadro de Resumen
-                y += 15;
-                gfx.DrawRectangle(new XPen(colorRosaOscuro, 1), new XSolidBrush(Color.FromArgb(255, 249, 248)), 20, y, page.Width - 40, 30);
-                gfx.DrawString(lblResumen1.Text, fontTotal, XBrushes.DarkGray, 30, y + 20);
-                gfx.DrawString(lblResumen2.Text, fontTotal, new XSolidBrush(colorRosaOscuro), page.Width - 250, y + 20);
-
-                string tempPdfPath = Path.Combine(Path.GetTempPath(), $"Reporte_{DateTime.Now:ddMMyyyy_HHmmss}.pdf");
-                document.Save(tempPdfPath);
-
-                Process.Start(new ProcessStartInfo(tempPdfPath) { UseShellExecute = true });
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al generar PDF: " + ex.Message, "Aura Beauty", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    "Error al exportar PDF: " +
+                    ex.Message,
+
+                    "Aura Beauty",
+
+                    MessageBoxButtons.OK,
+
+                    MessageBoxIcon.Error);
             }
         }
 
-        private string ObtenerValorCelda(DataGridViewRow row, string nombreColumna)
+        /// <summary>
+        /// Acorta una cadena de texto para impedir
+        /// que exceda el ancho de una página PDF.
+        /// </summary>
+        private static string Recortar(
+            string texto,
+            int maximo)
         {
-            if (row.DataGridView.Columns.Contains(nombreColumna))
+            return texto.Length <= maximo
+                ? texto
+                : texto.Substring(
+                    0, maximo - 3) + "...";
+        }
+
+        // ==================================================
+        // COMPONENTES VISUALES
+        // ==================================================
+
+        /// <summary>
+        /// Crea un panel blanco con esquinas redondeadas.
+        /// </summary>
+        private Panel PanelBlanco()
+        {
+            Panel panel = new Panel
             {
-                return row.Cells[nombreColumna].Value?.ToString() ?? "";
-            }
-            return "";
-        }
-
-        private void btnLimpiar_Click(object sender, EventArgs e)
-        {
-            txtBuscarStock.Clear();
-            dtpDesde.Value = DateTime.Today;
-            dtpHasta.Value = DateTime.Today;
-            if (cboVendedor.Items.Count > 0) cboVendedor.SelectedIndex = 0;
-            LimpiarResultados();
-        }
-
-        private void LimpiarResultados()
-        {
-            dgvReporte.DataSource = null;
-            lblResumen1.Text = "";
-            lblResumen2.Text = "";
-        }
-
-        private Label CrearEtiqueta(string t, int x, int y) => new Label { Text = t, AutoSize = true, Location = new Point(x, y), ForeColor = colorTexto, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
-        private Button CrearBoton(string t, int x, int y, int w) => new Button { Text = t, Location = new Point(x, y), Size = new Size(w, 40), BackColor = colorRosa, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9F, FontStyle.Bold), Cursor = Cursors.Hand };
-        private Button CrearBotonSecundario(string t, int x, int y, int w) => new Button { Text = t, Location = new Point(x, y), Size = new Size(w, 40), BackColor = Color.White, ForeColor = colorRosaOscuro, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9F, FontStyle.Bold), Cursor = Cursors.Hand };
-        private void ConfigurarGrilla(DataGridView g) { g.AllowUserToAddRows = false; g.ReadOnly = true; g.MultiSelect = false; g.SelectionMode = DataGridViewSelectionMode.FullRowSelect; g.BackgroundColor = Color.White; g.RowHeadersVisible = false; g.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill; }
-    
-
-    private Label CrearIndicador(string titulo, int x, int y)
-        {
-            Label lbl = new Label
-            {
-                Text = titulo + "\n$ 0,00",
-                Location = new Point(x, y),
-                Size = new Size(155, 75),
-                BackColor = Color.White,
-                ForeColor = colorRosaOscuro,
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-                TextAlign = ContentAlignment.MiddleCenter,
-                BorderStyle = BorderStyle.FixedSingle
+                BackColor = Color.White
             };
 
-            return lbl;
+            Redondear(panel, 14);
+
+            return panel;
+        }
+
+        /// <summary>
+        /// Crea un botón rosa nude con efecto visual
+        /// cuando el cursor pasa sobre él.
+        /// </summary>
+        private Button Boton(
+            string titulo,
+            int ancho)
+        {
+            Button boton = new Button
+            {
+                Text = titulo,
+                Width = ancho,
+                Height = 37,
+
+                Margin =
+                    new Padding(5, 0, 5, 0),
+
+                FlatStyle = FlatStyle.Flat,
+
+                BackColor = rosa,
+                ForeColor = Color.White,
+
+                Font = new Font(
+                    "Segoe UI", 9F, FontStyle.Bold),
+
+                Cursor = Cursors.Hand
+            };
+
+            boton.FlatAppearance.BorderSize = 0;
+
+            boton.MouseEnter += (s, e) =>
+            {
+                boton.BackColor = rosaOscuro;
+            };
+
+            boton.MouseLeave += (s, e) =>
+            {
+                boton.BackColor = rosa;
+            };
+
+            Redondear(boton, 9);
+
+            return boton;
+        }
+
+        // ==================================================
+        // BORDES REDONDEADOS
+        // ==================================================
+
+        /// <summary>
+        /// Recalcula el redondeo al cambiar
+        /// el tamaño de un control.
+        /// </summary>
+        private void Redondear(
+            Control control,
+            int radio)
+        {
+            control.Resize += (s, e) =>
+            {
+                AplicarRedondeo(control, radio);
+            };
+
+            AplicarRedondeo(control, radio);
+        }
+
+        /// <summary>
+        /// Construye una región con cuatro esquinas
+        /// redondeadas mediante GraphicsPath.
+        /// </summary>
+        private static void AplicarRedondeo(
+            Control control,
+            int radio)
+        {
+            if (control.Width <= 0 ||
+                control.Height <= 0)
+            {
+                return;
+            }
+
+            int diametro = Math.Min(
+                radio * 2,
+                Math.Min(
+                    control.Width,
+                    control.Height));
+
+            using (GraphicsPath ruta =
+                new GraphicsPath())
+            {
+                ruta.AddArc(
+                    0, 0,
+                    diametro, diametro,
+                    180, 90);
+
+                ruta.AddArc(
+                    control.Width - diametro,
+                    0,
+                    diametro, diametro,
+                    270, 90);
+
+                ruta.AddArc(
+                    control.Width - diametro,
+                    control.Height - diametro,
+                    diametro, diametro,
+                    0, 90);
+
+                ruta.AddArc(
+                    0,
+                    control.Height - diametro,
+                    diametro, diametro,
+                    90, 90);
+
+                ruta.CloseFigure();
+
+                Region anterior = control.Region;
+
+                control.Region = new Region(ruta);
+
+                if (anterior != null)
+                    anterior.Dispose();
+            }
         }
     }
 }

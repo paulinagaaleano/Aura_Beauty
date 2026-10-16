@@ -1,4 +1,5 @@
-﻿using System;
+﻿
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
@@ -6,64 +7,100 @@ using Entidades;
 
 namespace Datos
 {
+    /// <summary>
+    /// CAPA DATOS.
+    ///
+    /// Recupera información mediante los procedimientos
+    /// almacenados utilizados por el módulo de reportes.
+    ///
+    /// No realiza cálculos estadísticos comerciales.
+    /// </summary>
     public class CD_Reporte
     {
-
+        /// <summary>
+        /// Obtiene el detalle general de ventas de un período.
+        /// Utiliza SP_ReporteVentas.
+        /// </summary>
         public List<ReporteVenta> ObtenerVentas(
             DateTime fechaInicio,
             DateTime fechaFin,
-            int? idUsuario
-        )
+            int? idUsuario)
         {
-            List<ReporteVenta> lista = new List<ReporteVenta>();
+            List<ReporteVenta> lista =
+                new List<ReporteVenta>();
 
-            using (SqlConnection oconexion = new SqlConnection(Conexion.cadena))
+            using (SqlConnection oconexion =
+                new SqlConnection(Conexion.cadena))
             {
                 try
                 {
-                    SqlCommand cmd = new SqlCommand("SP_ReporteVentas", oconexion);
-                    cmd.CommandType = CommandType.StoredProcedure;
+                    SqlCommand cmd = new SqlCommand(
+                        "SP_ReporteVentas", oconexion);
 
-                    // Incluimos todas las ventas del período seleccionado.
-                    cmd.Parameters.AddWithValue("@FechaInicio", fechaInicio.Date);
-                    cmd.Parameters.AddWithValue("@FechaFin", fechaFin.Date.AddDays(1).AddTicks(-1));
+                    cmd.CommandType =
+                        CommandType.StoredProcedure;
 
-                    // Si no se selecciona vendedor, consultamos todos.
+                    // Incluimos todas las ventas del período.
+                    cmd.Parameters.AddWithValue(
+                        "@FechaInicio",
+                        fechaInicio.Date);
+
+                    cmd.Parameters.AddWithValue(
+                        "@FechaFin",
+                        fechaFin.Date.AddDays(1)
+                            .AddTicks(-1));
+
+                    // Si no se selecciona vendedor,
+                    // el procedimiento recibe NULL.
                     cmd.Parameters.AddWithValue(
                         "@IdUsuario",
-                        idUsuario.HasValue && idUsuario.Value > 0
+                        idUsuario.HasValue &&
+                        idUsuario.Value > 0
                             ? (object)idUsuario.Value
-                            : DBNull.Value
-                    );
+                            : DBNull.Value);
 
                     oconexion.Open();
 
-                    using (SqlDataReader dr = cmd.ExecuteReader())
+                    using (SqlDataReader dr =
+                        cmd.ExecuteReader())
                     {
                         while (dr.Read())
                         {
-                            ReporteVenta rv = new ReporteVenta
-                            {
-                                IdVenta = Convert.ToInt32(dr["IdVenta"]),
+                            ReporteVenta rv =
+                                new ReporteVenta
+                                {
+                                    IdVenta =
+                                        Convert.ToInt32(
+                                            dr["IdVenta"]),
 
-                                FechaVenta = Convert.ToDateTime(dr["FechaVenta"]),
+                                    FechaVenta =
+                                        Convert.ToDateTime(
+                                            dr["FechaVenta"]),
 
-                                NroFactura = dr["NroFactura"] != DBNull.Value
-                                    ? dr["NroFactura"].ToString()
-                                    : "",
+                                    NroFactura =
+                                        dr["NroFactura"] !=
+                                        DBNull.Value
+                                            ? dr["NroFactura"].ToString()
+                                            : "",
 
-                                Vendedor = dr["Vendedor"] != DBNull.Value
-                                    ? dr["Vendedor"].ToString()
-                                    : "Sin Vendedor",
+                                    Vendedor =
+                                        dr["Vendedor"] !=
+                                        DBNull.Value
+                                            ? dr["Vendedor"].ToString()
+                                            : "Sin Vendedor",
 
-                                Cliente = dr["Cliente"] != DBNull.Value
-                                    ? dr["Cliente"].ToString()
-                                    : "Consumidor Final",
+                                    Cliente =
+                                        dr["Cliente"] !=
+                                        DBNull.Value
+                                            ? dr["Cliente"].ToString()
+                                            : "Consumidor Final",
 
-                                Total = dr["Total"] != DBNull.Value
-                                    ? Convert.ToDecimal(dr["Total"])
-                                    : 0m
-                            };
+                                    Total =
+                                        dr["Total"] != DBNull.Value
+                                            ? Convert.ToDecimal(
+                                                dr["Total"])
+                                            : 0m
+                                };
 
                             lista.Add(rv);
                         }
@@ -80,26 +117,48 @@ namespace Datos
             return lista;
         }
 
-
-        public DataTable ObtenerReporteMovimientosStock(DateTime fechaInicio, DateTime fechaFin, out string mensaje)
+        /// <summary>
+        /// Obtiene el reporte de movimientos de stock.
+        /// Utiliza SP_ReporteMovimientosStock.
+        ///
+        /// Si ocurre un error, devuelve una tabla vacía
+        /// e informa el mensaje mediante el parámetro out.
+        /// </summary>
+        public DataTable ObtenerReporteMovimientosStock(
+            DateTime fechaInicio,
+            DateTime fechaFin,
+            out string mensaje)
         {
             mensaje = string.Empty;
+
             DataTable tabla = new DataTable();
 
-            using (SqlConnection oconexion = new SqlConnection(Conexion.cadena))
+            using (SqlConnection oconexion =
+                new SqlConnection(Conexion.cadena))
             {
                 try
                 {
-                    // Ajustamos el inicio a las 00:00:00 y el fin a las 23:59:59
                     DateTime inicio = fechaInicio.Date;
-                    DateTime fin = fechaFin.Date.AddDays(1).AddSeconds(-1);
 
-                    SqlCommand cmd = new SqlCommand("SP_ReporteMovimientosStock", oconexion);
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.Parameters.AddWithValue("@FechaInicio", inicio);
-                    cmd.Parameters.AddWithValue("@FechaFin", fin);
+                    DateTime fin = fechaFin.Date
+                        .AddDays(1).AddSeconds(-1);
 
-                    SqlDataAdapter da = new SqlDataAdapter(cmd);
+                    SqlCommand cmd = new SqlCommand(
+                        "SP_ReporteMovimientosStock",
+                        oconexion);
+
+                    cmd.CommandType =
+                        CommandType.StoredProcedure;
+
+                    cmd.Parameters.AddWithValue(
+                        "@FechaInicio", inicio);
+
+                    cmd.Parameters.AddWithValue(
+                        "@FechaFin", fin);
+
+                    SqlDataAdapter da =
+                        new SqlDataAdapter(cmd);
+
                     da.Fill(tabla);
                 }
                 catch (Exception ex)
@@ -112,17 +171,22 @@ namespace Datos
             return tabla;
         }
 
-
-
-
+        /// <summary>
+        /// Recupera las cabeceras de ventas utilizadas
+        /// para los cálculos estadísticos.
+        ///
+        /// Utiliza SP_ReporteVentasAnalisis.
+        /// </summary>
         public List<ReporteVenta> ObtenerVentasAnalisis(
-        DateTime fechaInicio,
-        DateTime fechaFin,
-        int? idUsuario)
+            DateTime fechaInicio,
+            DateTime fechaFin,
+            int? idUsuario)
         {
-            List<ReporteVenta> lista = new List<ReporteVenta>();
+            List<ReporteVenta> lista =
+                new List<ReporteVenta>();
 
-            using (SqlConnection oconexion = new SqlConnection(Conexion.cadena))
+            using (SqlConnection oconexion =
+                new SqlConnection(Conexion.cadena))
             {
                 try
                 {
@@ -130,7 +194,8 @@ namespace Datos
                         "SP_ReporteVentasAnalisis",
                         oconexion);
 
-                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.CommandType =
+                        CommandType.StoredProcedure;
 
                     cmd.Parameters.AddWithValue(
                         "@FechaInicio",
@@ -142,27 +207,35 @@ namespace Datos
 
                     cmd.Parameters.AddWithValue(
                         "@IdUsuario",
-                        idUsuario.HasValue && idUsuario.Value > 0
+                        idUsuario.HasValue &&
+                        idUsuario.Value > 0
                             ? (object)idUsuario.Value
                             : DBNull.Value);
 
                     oconexion.Open();
 
-                    using (SqlDataReader dr = cmd.ExecuteReader())
+                    using (SqlDataReader dr =
+                        cmd.ExecuteReader())
                     {
                         while (dr.Read())
                         {
-                            ReporteVenta rv = new ReporteVenta
-                            {
-                                IdVenta = Convert.ToInt32(dr["IdVenta"]),
+                            ReporteVenta rv =
+                                new ReporteVenta
+                                {
+                                    IdVenta =
+                                        Convert.ToInt32(
+                                            dr["IdVenta"]),
 
-                                FechaVenta = Convert.ToDateTime(
-                                    dr["FechaVenta"]),
+                                    FechaVenta =
+                                        Convert.ToDateTime(
+                                            dr["FechaVenta"]),
 
-                                Total = dr["Total"] != DBNull.Value
-                                    ? Convert.ToDecimal(dr["Total"])
-                                    : 0m
-                            };
+                                    Total =
+                                        dr["Total"] != DBNull.Value
+                                            ? Convert.ToDecimal(
+                                                dr["Total"])
+                                            : 0m
+                                };
 
                             lista.Add(rv);
                         }
@@ -180,11 +253,20 @@ namespace Datos
             return lista;
         }
 
-
-        public List<DetalleVentaAnalisis> ObtenerDetallesVentasAnalisis(
-            DateTime fechaInicio,
-            DateTime fechaFin,
-            int? idUsuario)
+        /// <summary>
+        /// Recupera los detalles de las ventas.
+        ///
+        /// Utiliza SP_ReporteVentasDetallesAnalisis.
+        ///
+        /// Sus cantidades y subtotales permiten que
+        /// la capa Negocio calcule los reportes de
+        /// productos y categorías.
+        /// </summary>
+        public List<DetalleVentaAnalisis>
+            ObtenerDetallesVentasAnalisis(
+                DateTime fechaInicio,
+                DateTime fechaFin,
+                int? idUsuario)
         {
             List<DetalleVentaAnalisis> lista =
                 new List<DetalleVentaAnalisis>();
@@ -198,7 +280,8 @@ namespace Datos
                         "SP_ReporteVentasDetallesAnalisis",
                         oconexion);
 
-                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.CommandType =
+                        CommandType.StoredProcedure;
 
                     cmd.Parameters.AddWithValue(
                         "@FechaInicio",
@@ -210,39 +293,48 @@ namespace Datos
 
                     cmd.Parameters.AddWithValue(
                         "@IdUsuario",
-                        idUsuario.HasValue && idUsuario.Value > 0
+                        idUsuario.HasValue &&
+                        idUsuario.Value > 0
                             ? (object)idUsuario.Value
                             : DBNull.Value);
 
                     oconexion.Open();
 
-                    using (SqlDataReader dr = cmd.ExecuteReader())
+                    using (SqlDataReader dr =
+                        cmd.ExecuteReader())
                     {
                         while (dr.Read())
                         {
                             DetalleVentaAnalisis detalle =
                                 new DetalleVentaAnalisis
                                 {
-                                    IdVenta = Convert.ToInt32(
-                                        dr["IdVenta"]),
+                                    IdVenta =
+                                        Convert.ToInt32(
+                                            dr["IdVenta"]),
 
-                                    FechaVenta = Convert.ToDateTime(
-                                        dr["FechaVenta"]),
+                                    FechaVenta =
+                                        Convert.ToDateTime(
+                                            dr["FechaVenta"]),
 
-                                    IdUsuario = dr["IdUsuario"] != DBNull.Value
-                                        ? Convert.ToInt32(dr["IdUsuario"])
-                                        : 0,
+                                    IdUsuario =
+                                        dr["IdUsuario"] != DBNull.Value
+                                            ? Convert.ToInt32(
+                                                dr["IdUsuario"])
+                                            : 0,
 
-                                    IdProducto = Convert.ToInt32(
-                                        dr["IdProducto"]),
+                                    IdProducto =
+                                        Convert.ToInt32(
+                                            dr["IdProducto"]),
 
-                                    Cantidad = Convert.ToInt32(
-                                        dr["Cantidad"]),
+                                    Cantidad =
+                                        Convert.ToInt32(
+                                            dr["Cantidad"]),
 
-                                    Subtotal = dr["Subtotal"] != DBNull.Value
-                                        ? Convert.ToDecimal(
-                                            dr["Subtotal"])
-                                        : 0m
+                                    Subtotal =
+                                        dr["Subtotal"] != DBNull.Value
+                                            ? Convert.ToDecimal(
+                                                dr["Subtotal"])
+                                            : 0m
                                 };
 
                             lista.Add(detalle);
@@ -262,4 +354,3 @@ namespace Datos
         }
     }
 }
-
