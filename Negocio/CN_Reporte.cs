@@ -9,22 +9,16 @@ using Entidades;
 namespace Negocio
 {
     /// <summary>
-    /// CAPA NEGOCIO - REPORTES DE AURA BEAUTY.
+    /// CAPA NEGOCIO: Centro de Reportes de Aura Beauty.
     ///
-    /// Calcula indicadores, acumuladores, porcentajes
-    /// y agrupaciones con los datos recuperados
-    /// por la capa Datos.
+    /// Calcula sumas, promedios, porcentajes,
+    /// agrupaciones y rankings comerciales.
     ///
-    /// Reutiliza los procedimientos del módulo original:
-    /// SP_ReporteVentas
-    /// SP_ReporteMovimientosStock
-    /// SP_ReporteVentasAnalisis
-    /// SP_ReporteVentasDetallesAnalisis
+    /// No ejecuta SQL directamente.
+    /// No crea procedimientos almacenados.
     ///
-    /// Para solicitudes pendientes reutiliza
-    /// CD_SolicitudStock.ListarPendientes().
-    ///
-    /// No ejecuta sentencias SQL directamente.
+    /// Se conservan las firmas públicas utilizadas
+    /// por los otros módulos del sistema.
     /// </summary>
     public class CN_Reporte
     {
@@ -37,9 +31,6 @@ namespace Negocio
         private readonly CD_Categoria datosCategorias =
             new CD_Categoria();
 
-        private readonly CD_Stock datosStock =
-            new CD_Stock();
-
         private readonly CD_Usuario datosUsuarios =
             new CD_Usuario();
 
@@ -49,13 +40,13 @@ namespace Negocio
         private readonly CD_SolicitudStock datosSolicitudes =
             new CD_SolicitudStock();
 
-        // ==================================================
-        // CONSULTAS ORIGINALES
-        // ==================================================
+        // =====================================================
+        // 1. CONSULTAS ORIGINALES
+        // =====================================================
 
         /// <summary>
-        /// Recupera ventas mediante el método original
-        /// de la capa Datos.
+        /// Recupera el listado de ventas mediante Datos.
+        /// Mantiene el método utilizado por otros módulos.
         /// </summary>
         public List<ReporteVenta> ObtenerVentas(
             DateTime desde,
@@ -69,8 +60,8 @@ namespace Negocio
         }
 
         /// <summary>
-        /// Recupera las cabeceras utilizadas
-        /// en el análisis estadístico.
+        /// Recupera las cabeceras de las ventas
+        /// para calcular estadísticas.
         /// </summary>
         public List<ReporteVenta> ObtenerVentasAnalisis(
             DateTime desde,
@@ -84,10 +75,11 @@ namespace Negocio
         }
 
         /// <summary>
-        /// Conserva el reporte original de movimientos.
+        /// Conserva la consulta existente de
+        /// movimientos de stock para Solicitudes.
         ///
-        /// El mensaje de error se devuelve mediante
-        /// un parámetro de salida.
+        /// No se utiliza para incluir productos
+        /// sin ventas en el reporte comercial.
         /// </summary>
         public DataTable ObtenerReporteMovimientosStock(
             DateTime desde,
@@ -108,19 +100,17 @@ namespace Negocio
                 desde, hasta, out mensaje);
         }
 
-        // ==================================================
-        // RESUMEN DE VENTAS
-        // ==================================================
+        // =====================================================
+        // 2. RESUMEN DE VENTAS
+        // =====================================================
 
         /// <summary>
         /// Calcula:
         /// - Facturación total.
-        /// - Cantidad de ventas.
+        /// - Cantidad de operaciones.
         /// - Ticket promedio.
         /// - Unidades vendidas.
         /// - Venta máxima y mínima.
-        ///
-        /// Utiliza acumuladores y comparaciones.
         /// </summary>
         public ResumenVentas ObtenerResumenVentas(
             DateTime desde,
@@ -135,11 +125,11 @@ namespace Negocio
                 datos.ObtenerDetallesVentasAnalisis(
                     desde, hasta, vendedor);
 
-            ResumenVentas resultado =
+            ResumenVentas resumen =
                 new ResumenVentas();
 
             if (ventas.Count == 0)
-                return resultado;
+                return resumen;
 
             decimal total = 0m;
 
@@ -157,23 +147,23 @@ namespace Negocio
                     minimo = venta.Total;
             }
 
-            int unidades = 0;
+            resumen.FacturacionTotal = total;
+            resumen.CantidadVentas = ventas.Count;
 
-            foreach (DetalleVentaAnalisis detalle in detalles)
-                unidades += detalle.Cantidad;
+            resumen.TicketPromedio =
+                total / ventas.Count;
 
-            resultado.FacturacionTotal = total;
-            resultado.CantidadVentas = ventas.Count;
-            resultado.TicketPromedio = total / ventas.Count;
-            resultado.UnidadesVendidas = unidades;
-            resultado.VentaMaxima = maximo;
-            resultado.VentaMinima = minimo;
+            resumen.UnidadesVendidas =
+                detalles.Sum(d => d.Cantidad);
 
-            return resultado;
+            resumen.VentaMaxima = maximo;
+            resumen.VentaMinima = minimo;
+
+            return resumen;
         }
 
         /// <summary>
-        /// Agrupa las ventas por día y suma sus importes.
+        /// Agrupa las ventas por fecha.
         /// </summary>
         public List<VentaPorDia> ObtenerVentasPorDia(
             DateTime desde,
@@ -182,14 +172,20 @@ namespace Negocio
         {
             return ObtenerVentasAnalisis(
                 desde, hasta, vendedor)
+
                 .GroupBy(v => v.FechaVenta.Date)
+
                 .OrderBy(g => g.Key)
+
                 .Select(g => new VentaPorDia
                 {
                     Fecha = g.Key,
+
                     Total = g.Sum(v => v.Total),
+
                     CantidadVentas = g.Count()
                 })
+
                 .ToList();
         }
 
@@ -198,9 +194,6 @@ namespace Negocio
         ///
         /// Variación porcentual:
         /// (actual - anterior) * 100 / anterior.
-        ///
-        /// Si el período anterior registra cero,
-        /// el porcentaje se devuelve como null.
         /// </summary>
         public ComparacionVentas CompararVentas(
             DateTime desde,
@@ -219,45 +212,53 @@ namespace Negocio
                     hastaAnterior,
                     vendedor);
 
-            decimal a = actual.Sum(v => v.Total);
-            decimal b = anterior.Sum(v => v.Total);
+            decimal totalActual =
+                actual.Sum(v => v.Total);
+
+            decimal totalAnterior =
+                anterior.Sum(v => v.Total);
 
             return new ComparacionVentas
             {
-                FacturacionActual = a,
-                FacturacionAnterior = b,
-                DiferenciaFacturacion = a - b,
+                FacturacionActual = totalActual,
 
-                VariacionPorcentual = b > 0m
-                    ? (decimal?)((a - b) * 100m / b)
+                FacturacionAnterior = totalAnterior,
+
+                DiferenciaFacturacion =
+                    totalActual - totalAnterior,
+
+                VariacionPorcentual =
+                    totalAnterior > 0m
+                    ? (decimal?)(
+                        (totalActual - totalAnterior) *
+                        100m / totalAnterior)
                     : null,
 
                 CantidadVentasActual = actual.Count,
+
                 CantidadVentasAnterior = anterior.Count
             };
         }
 
-        // ==================================================
-        // FILTROS ESPECÍFICOS
-        // ==================================================
+        // =====================================================
+        // 3. FILTROS SEGÚN LA SECCIÓN
+        // =====================================================
 
         /// <summary>
-        /// Carga las opciones correspondientes a cada
-        /// sección del dashboard.
+        /// Devuelve las opciones para el filtro
+        /// correspondiente a cada reporte.
         ///
-        /// Ventas: vendedores.
-        /// Productos: productos.
-        /// Categorías: categorías.
-        /// Stock: productos.
-        /// Solicitudes: estados.
-        /// Vendedores: vendedores.
-        /// Clientes: clientes.
-        ///
-        /// El identificador cero indica "Todos".
+        /// Productos: solo productos vendidos.
+        /// Categorías: solo categorías con ventas.
+        /// Vendedores: solo vendedores con operaciones.
         /// </summary>
         public List<OpcionReporte> ObtenerOpciones(
-            string seccion)
+            string seccion,
+            DateTime desde,
+            DateTime hasta)
         {
+            ValidarFechas(desde, hasta);
+
             List<OpcionReporte> opciones =
                 new List<OpcionReporte>();
 
@@ -275,51 +276,71 @@ namespace Negocio
                     .Where(u => u.IdRol == 2)
                     .OrderBy(u => u.Apellido))
                 {
+                    if (seccion == "Vendedores")
+                    {
+                        int operaciones =
+                            datos.ObtenerVentasAnalisis(
+                                desde,
+                                hasta,
+                                usuario.IdUsuario).Count;
+
+                        if (operaciones == 0)
+                            continue;
+                    }
+
                     opciones.Add(new OpcionReporte
                     {
                         Id = usuario.IdUsuario,
+
                         Nombre = usuario.Apellido +
                             ", " + usuario.Nombre
                     });
                 }
             }
             else if (seccion == "Productos" ||
-                     seccion == "Stock")
+                     seccion == "Categorías")
             {
-                opciones.Add(new OpcionReporte
-                {
-                    Id = 0,
-                    Nombre = "Todos los productos"
-                });
+                AnalisisProductosCategorias analisis =
+                    ObtenerAnalisisProductosCategorias(
+                        desde, hasta, null);
 
-                foreach (Producto producto in
-                    datosProductos.Listar()
-                    .OrderBy(p => p.Nombre))
+                if (seccion == "Productos")
                 {
                     opciones.Add(new OpcionReporte
                     {
-                        Id = producto.IdProducto,
-                        Nombre = producto.Nombre
+                        Id = 0,
+                        Nombre = "Todos los productos"
                     });
+
+                    foreach (ReporteProducto p in
+                        analisis.Productos
+                        .OrderBy(p => p.NombreProducto))
+                    {
+                        opciones.Add(new OpcionReporte
+                        {
+                            Id = p.IdProducto,
+                            Nombre = p.NombreProducto
+                        });
+                    }
                 }
-            }
-            else if (seccion == "Categorías")
-            {
-                opciones.Add(new OpcionReporte
-                {
-                    Id = 0,
-                    Nombre = "Todas las categorías"
-                });
-
-                foreach (Categoria categoria in
-                    datosCategorias.Listar()
-                    .OrderBy(c => c.Nombre))
+                else
                 {
                     opciones.Add(new OpcionReporte
                     {
-                        Id = categoria.IdCategoria,
-                        Nombre = categoria.Nombre
+                        Id = 0,
+                        Nombre = "Todas las categorías"
                     });
+
+                    foreach (ReporteCategoria c in
+                        analisis.Categorias
+                        .OrderBy(c => c.NombreCategoria))
+                    {
+                        opciones.Add(new OpcionReporte
+                        {
+                            Id = c.IdCategoria,
+                            Nombre = c.NombreCategoria
+                        });
+                    }
                 }
             }
             else if (seccion == "Solicitudes")
@@ -356,15 +377,16 @@ namespace Negocio
                     Nombre = "Todos los clientes"
                 });
 
-                foreach (Cliente cliente in
+                foreach (Cliente c in
                     datosClientes.Listar()
                     .OrderBy(c => c.Apellido))
                 {
                     opciones.Add(new OpcionReporte
                     {
-                        Id = cliente.IdCliente,
-                        Nombre = cliente.Apellido +
-                            ", " + cliente.Nombre
+                        Id = c.IdCliente,
+
+                        Nombre = c.Apellido +
+                            ", " + c.Nombre
                     });
                 }
             }
@@ -372,15 +394,13 @@ namespace Negocio
             return opciones;
         }
 
-        // ==================================================
-        // SELECCIÓN DEL REPORTE
-        // ==================================================
+        // =====================================================
+        // 4. SELECCIÓN DEL REPORTE
+        // =====================================================
 
         /// <summary>
-        /// Punto de entrada de los reportes estadísticos.
-        ///
-        /// Recibe la sección y los filtros, y devuelve
-        /// una VistaReporte lista para mostrar.
+        /// Recibe la sección y los filtros del formulario.
+        /// Devuelve una VistaReporte ya calculada.
         /// </summary>
         public VistaReporte ConstruirReporte(
             string seccion,
@@ -390,44 +410,44 @@ namespace Negocio
         {
             ValidarFechas(desde, hasta);
 
-            if (seccion == "Ventas")
-                return ReporteVentas(
-                    desde, hasta, idFiltro);
+            switch (seccion)
+            {
+                case "Ventas":
+                    return ReporteVentas(
+                        desde, hasta, idFiltro);
 
-            if (seccion == "Productos")
-                return ReporteProductos(
-                    desde, hasta, idFiltro);
+                case "Productos":
+                    return ReporteProductos(
+                        desde, hasta, idFiltro);
 
-            if (seccion == "Categorías")
-                return ReporteCategorias(
-                    desde, hasta, idFiltro);
+                case "Categorías":
+                    return ReporteCategorias(
+                        desde, hasta, idFiltro);
 
-            if (seccion == "Stock")
-                return ReporteStock(
-                    desde, hasta, idFiltro);
+                case "Solicitudes":
+                    return ReporteSolicitudes(
+                        desde, hasta, idFiltro);
 
-            if (seccion == "Solicitudes")
-                return ReporteSolicitudes(
-                    desde, hasta, idFiltro);
+                case "Vendedores":
+                    return ReporteVendedores(
+                        desde, hasta, idFiltro);
 
-            if (seccion == "Vendedores")
-                return ReporteVendedores(
-                    desde, hasta, idFiltro);
+                case "Clientes":
+                    return ReporteClientes(
+                        desde, hasta, idFiltro);
 
-            if (seccion == "Clientes")
-                return ReporteClientes(
-                    desde, hasta, idFiltro);
-
-            throw new ArgumentException(
-                "Sección no reconocida: " + seccion);
+                default:
+                    throw new ArgumentException(
+                        "Sección no reconocida: " + seccion);
+            }
         }
 
-        // ==================================================
-        // MÉTODOS AUXILIARES
-        // ==================================================
+        // =====================================================
+        // 5. MÉTODOS AUXILIARES
+        // =====================================================
 
         /// <summary>
-        /// Verifica que el período tenga orden cronológico.
+        /// Comprueba que el período sea válido.
         /// </summary>
         private static void ValidarFechas(
             DateTime desde,
@@ -440,24 +460,33 @@ namespace Negocio
             }
         }
 
-        private static string Moneda(decimal valor)
+        /// <summary>
+        /// Formatea un importe monetario.
+        /// </summary>
+        private static string Moneda(decimal cantidad)
         {
-            return "$ " + valor.ToString("N2");
+            return "$ " + cantidad.ToString("N2");
         }
 
-        private static string Numero(int valor)
+        /// <summary>
+        /// Formatea cantidades sin decimales.
+        /// </summary>
+        private static string Numero(int cantidad)
         {
-            return valor.ToString("N0");
+            return cantidad.ToString("N0");
         }
 
-        private static string Porcentaje(decimal valor)
+        /// <summary>
+        /// Formatea un porcentaje con dos decimales.
+        /// </summary>
+        private static string Porcentaje(decimal cantidad)
         {
-            return valor.ToString("N2") + " %";
+            return cantidad.ToString("N2") + " %";
         }
 
         /// <summary>
         /// Calcula qué porcentaje representa una parte
-        /// respecto de un total, sin dividir por cero.
+        /// respecto de un total.
         /// </summary>
         private static decimal Participacion(
             decimal parte,
@@ -468,6 +497,9 @@ namespace Negocio
                 : 0m;
         }
 
+        /// <summary>
+        /// Prepara un punto del gráfico.
+        /// </summary>
         private static PuntoReporte Punto(
             string nombre,
             decimal valor)
@@ -480,7 +512,7 @@ namespace Negocio
         }
 
         /// <summary>
-        /// Crea una tabla de detalle con columnas de texto.
+        /// Crea las columnas de una tabla de resultados.
         /// </summary>
         private static DataTable Tabla(
             params string[] columnas)
@@ -488,14 +520,16 @@ namespace Negocio
             DataTable tabla = new DataTable();
 
             foreach (string columna in columnas)
+            {
                 tabla.Columns.Add(
                     columna, typeof(string));
+            }
 
             return tabla;
         }
 
         /// <summary>
-        /// Lee una columna del DataTable si existe.
+        /// Lee una columna de un DataRow si existe.
         /// </summary>
         private static string Texto(
             DataRow fila,
@@ -508,7 +542,7 @@ namespace Negocio
         }
 
         /// <summary>
-        /// Convierte una columna en número entero.
+        /// Convierte un dato de la tabla a entero.
         /// </summary>
         private static int Entero(
             DataRow fila,
@@ -523,13 +557,12 @@ namespace Negocio
                 : 0;
         }
 
-        // ==================================================
-        // REPORTE: VENTAS
-        // ==================================================
+        // =====================================================
+        // 6. REPORTE DE VENTAS
+        // =====================================================
 
         /// <summary>
-        /// Prepara los indicadores, gráficos y tabla
-        /// del reporte de ventas.
+        /// Mantiene los indicadores y gráficos de ventas.
         /// </summary>
         private VistaReporte ReporteVentas(
             DateTime desde,
@@ -539,7 +572,7 @@ namespace Negocio
             int? vendedor =
                 filtro == 0 ? (int?)null : filtro;
 
-            ResumenVentas resumen =
+            ResumenVentas r =
                 ObtenerResumenVentas(
                     desde, hasta, vendedor);
 
@@ -562,12 +595,12 @@ namespace Negocio
 
             vista.ValoresIndicadores = new[]
             {
-                Moneda(resumen.FacturacionTotal),
-                Numero(resumen.CantidadVentas),
-                Moneda(resumen.TicketPromedio),
-                Numero(resumen.UnidadesVendidas),
-                Moneda(resumen.VentaMaxima),
-                Moneda(resumen.VentaMinima)
+                Moneda(r.FacturacionTotal),
+                Numero(r.CantidadVentas),
+                Moneda(r.TicketPromedio),
+                Numero(r.UnidadesVendidas),
+                Moneda(r.VentaMaxima),
+                Moneda(r.VentaMinima)
             };
 
             foreach (VentaPorDia dia in
@@ -581,21 +614,23 @@ namespace Negocio
             }
 
             DateTime mes =
-                new DateTime(hasta.Year, hasta.Month, 1);
+                new DateTime(
+                    hasta.Year, hasta.Month, 1);
 
-            DateTime mesAnterior = mes.AddMonths(-1);
+            DateTime anterior =
+                mes.AddMonths(-1);
 
             ComparacionVentas comparacion =
                 CompararVentas(
                     mes,
                     mes.AddMonths(1).AddDays(-1),
-                    mesAnterior,
+                    anterior,
                     mes.AddDays(-1),
                     vendedor);
 
             vista.PuntosGrafico2.Add(
                 Punto(
-                    mesAnterior.ToString("MM/yyyy"),
+                    anterior.ToString("MM/yyyy"),
                     comparacion.FacturacionAnterior));
 
             vista.PuntosGrafico2.Add(
@@ -614,30 +649,33 @@ namespace Negocio
             {
                 vista.Detalle.Rows.Add(
                     venta.IdVenta.ToString(),
+
                     venta.FechaVenta.ToString(
                         "dd/MM/yyyy HH:mm"),
+
                     Moneda(venta.Total));
             }
 
             vista.Aviso =
-                "Comparación entre meses completos. " +
-                "La tabla corresponde al filtro de fechas.";
+                "Comparación de meses completos. " +
+                "El detalle respeta las fechas elegidas.";
 
             return vista;
         }
 
-        // ==================================================
-        // ANÁLISIS DE PRODUCTOS Y CATEGORÍAS
-        // ==================================================
+        // =====================================================
+        // 7. PRODUCTOS: SOLO VENTAS EFECTIVAS
+        // =====================================================
 
         /// <summary>
-        /// Agrupa los detalles de venta por producto.
+        /// Calcula estadísticas exclusivamente a partir
+        /// de productos que tienen unidades vendidas.
         ///
-        /// Utiliza el subtotal histórico, nunca
-        /// el precio actual para reconstruir ventas.
+        /// Ya no une los productos vendidos con los que
+        /// solamente tuvieron movimientos de inventario.
         ///
-        /// Los productos fuera del catálogo activo
-        /// se conservan mediante su identificador.
+        /// Se conservan las ventas históricas aunque un
+        /// artículo ya no figure en el catálogo activo.
         /// </summary>
         public AnalisisProductosCategorias
             ObtenerAnalisisProductosCategorias(
@@ -653,200 +691,231 @@ namespace Negocio
             List<Categoria> categorias =
                 datosCategorias.Listar();
 
-            List<DetalleVentaAnalisis> detalles =
+            List<DetalleVentaAnalisis> ventas =
                 datos.ObtenerDetallesVentasAnalisis(
-                    desde, hasta, vendedor);
+                    desde, hasta, vendedor)
 
-            var activos = catalogo.ToDictionary(
-                p => p.IdProducto);
+                .Where(d => d.Cantidad > 0)
 
-            var grupos = detalles
-                .GroupBy(d => d.IdProducto)
+                .ToList();
+
+            Dictionary<int, Producto> productosPorId =
+                catalogo
+
+                .GroupBy(p => p.IdProducto)
+
                 .ToDictionary(
                     g => g.Key,
-                    g => g.ToList());
+                    g => g.First());
 
-            var ids = catalogo
-                .Select(p => p.IdProducto)
-                .Union(
-                    detalles.Select(d => d.IdProducto))
-                .Distinct();
-
-            AnalisisProductosCategorias respuesta =
+            AnalisisProductosCategorias analisis =
                 new AnalisisProductosCategorias();
 
-            respuesta.FacturacionTotal =
-                detalles.Sum(d => d.Subtotal);
+            analisis.FacturacionTotal =
+                ventas.Sum(d => d.Subtotal);
 
-            respuesta.UnidadesVendidas =
-                detalles.Sum(d => d.Cantidad);
+            analisis.UnidadesVendidas =
+                ventas.Sum(d => d.Cantidad);
 
-            foreach (int id in ids)
+            // Solo aparecen productos de ventas reales.
+            foreach (var grupo in ventas.GroupBy(
+                d => d.IdProducto))
             {
                 Producto producto;
 
-                bool conocido =
-                    activos.TryGetValue(
-                        id, out producto);
+                bool existeEnCatalogo =
+                    productosPorId.TryGetValue(
+                        grupo.Key,
+                        out producto);
 
-                List<DetalleVentaAnalisis> filas;
+                decimal facturacion =
+                    grupo.Sum(d => d.Subtotal);
 
-                if (!grupos.TryGetValue(id, out filas))
-                {
-                    filas = new List<DetalleVentaAnalisis>();
-                }
-
-                decimal ingreso =
-                    filas.Sum(d => d.Subtotal);
-
-                ReporteProducto resultado =
+                analisis.Productos.Add(
                     new ReporteProducto
                     {
-                        IdProducto = id,
+                        IdProducto = grupo.Key,
 
-                        NombreProducto = conocido
-                            ? producto.Nombre
-                            : "Producto no incluido en catálogo activo #" +
-                              id,
+                        NombreProducto =
+                            existeEnCatalogo
+                                ? producto.Nombre
+                                : "Producto histórico #" +
+                                  grupo.Key,
 
-                        IdCategoria = conocido
-                            ? producto.IdCategoria
-                            : 0,
+                        IdCategoria =
+                            existeEnCatalogo
+                                ? producto.IdCategoria
+                                : 0,
 
                         NombreCategoria =
-                            conocido &&
+                            existeEnCatalogo &&
                             producto.oCategoria != null
                                 ? producto.oCategoria.Nombre
                                 : "Categoría no disponible",
 
-                        EstaEnCatalogoActivo = conocido,
+                        EstaEnCatalogoActivo =
+                            existeEnCatalogo,
 
-                        StockActual = conocido
-                            ? producto.Stock
-                            : 0,
+                        StockActual =
+                            existeEnCatalogo
+                                ? producto.Stock
+                                : 0,
 
                         UnidadesVendidas =
-                            filas.Sum(d => d.Cantidad),
+                            grupo.Sum(d => d.Cantidad),
 
-                        FacturacionTotal = ingreso,
+                        FacturacionTotal =
+                            facturacion,
 
                         PorcentajeFacturacion =
                             Participacion(
-                                ingreso,
-                                respuesta.FacturacionTotal)
-                    };
-
-                respuesta.Productos.Add(resultado);
+                                facturacion,
+                                analisis.FacturacionTotal)
+                    });
             }
 
-            respuesta.Productos =
-                respuesta.Productos
-                .OrderByDescending(p => p.FacturacionTotal)
+            analisis.Productos =
+                analisis.Productos
+
+                .OrderByDescending(
+                    p => p.FacturacionTotal)
+
+                .ThenBy(p => p.NombreProducto)
+
                 .ToList();
 
-            respuesta.ProductosConVentas =
-                respuesta.Productos.Count(
-                    p => p.UnidadesVendidas > 0);
+            analisis.ProductosConVentas =
+                analisis.Productos.Count;
 
-            respuesta.ProductosSinVentas =
-                respuesta.Productos.Count(
-                    p => p.EstaEnCatalogoActivo &&
-                         p.UnidadesVendidas == 0);
+            analisis.ProductosSinVentas = 0;
 
-            foreach (Categoria categoria in categorias)
+            // Solo categorías con productos vendidos.
+            foreach (Categoria categoria in
+                categorias
+
+                .GroupBy(c => c.IdCategoria)
+
+                .Select(g => g.First()))
             {
-                List<ReporteProducto> lista =
-                    respuesta.Productos
+                List<ReporteProducto> productos =
+                    analisis.Productos
+
                     .Where(p =>
                         p.IdCategoria ==
                         categoria.IdCategoria)
+
                     .ToList();
 
-                decimal ingreso =
-                    lista.Sum(p => p.FacturacionTotal);
+                if (productos.Count == 0)
+                    continue;
 
-                respuesta.Categorias.Add(
+                decimal facturacion =
+                    productos.Sum(
+                        p => p.FacturacionTotal);
+
+                analisis.Categorias.Add(
                     new ReporteCategoria
                     {
-                        IdCategoria = categoria.IdCategoria,
-                        NombreCategoria = categoria.Nombre,
+                        IdCategoria =
+                            categoria.IdCategoria,
 
-                        UnidadesVendidas =
-                            lista.Sum(p => p.UnidadesVendidas),
+                        NombreCategoria =
+                            categoria.Nombre,
 
                         ProductosConVentas =
-                            lista.Count(
-                                p => p.UnidadesVendidas > 0),
+                            productos.Count,
 
-                        FacturacionTotal = ingreso,
+                        UnidadesVendidas =
+                            productos.Sum(
+                                p => p.UnidadesVendidas),
+
+                        FacturacionTotal =
+                            facturacion,
 
                         PorcentajeFacturacion =
                             Participacion(
-                                ingreso,
-                                respuesta.FacturacionTotal)
+                                facturacion,
+                                analisis.FacturacionTotal)
                     });
             }
 
-            // Las ventas sin información de categoría
-            // no se asignan a una categoría inventada.
-            List<ReporteProducto> noIdentificados =
-                respuesta.Productos
-                .Where(p => p.IdCategoria == 0)
+            // No se descartan ventas históricas
+            // de productos ya retirados del catálogo.
+            HashSet<int> idsCategorias =
+                new HashSet<int>(
+                    categorias.Select(
+                        c => c.IdCategoria));
+
+            List<ReporteProducto> sinCategoria =
+                analisis.Productos
+
+                .Where(p =>
+                    p.IdCategoria == 0 ||
+                    !idsCategorias.Contains(
+                        p.IdCategoria))
+
                 .ToList();
 
-            if (noIdentificados.Count > 0)
+            if (sinCategoria.Count > 0)
             {
-                decimal ingreso = noIdentificados
-                    .Sum(p => p.FacturacionTotal);
+                decimal facturacion =
+                    sinCategoria.Sum(
+                        p => p.FacturacionTotal);
 
-                respuesta.Categorias.Add(
+                analisis.Categorias.Add(
                     new ReporteCategoria
                     {
-                        IdCategoria = 0,
+                        IdCategoria = -1,
+
                         NombreCategoria =
                             "Categoría no disponible",
 
+                        ProductosConVentas =
+                            sinCategoria.Count,
+
                         UnidadesVendidas =
-                            noIdentificados.Sum(
+                            sinCategoria.Sum(
                                 p => p.UnidadesVendidas),
 
-                        ProductosConVentas =
-                            noIdentificados.Count(
-                                p => p.UnidadesVendidas > 0),
-
-                        FacturacionTotal = ingreso,
+                        FacturacionTotal =
+                            facturacion,
 
                         PorcentajeFacturacion =
                             Participacion(
-                                ingreso,
-                                respuesta.FacturacionTotal)
+                                facturacion,
+                                analisis.FacturacionTotal)
                     });
             }
 
-            respuesta.Categorias =
-                respuesta.Categorias
-                .OrderByDescending(c => c.FacturacionTotal)
+            analisis.Categorias =
+                analisis.Categorias
+
+                .OrderByDescending(
+                    c => c.FacturacionTotal)
+
+                .ThenBy(c => c.NombreCategoria)
+
                 .ToList();
 
-            respuesta.CategoriasConVentas =
-                respuesta.Categorias.Count(
-                    c => c.UnidadesVendidas > 0);
+            analisis.CategoriasConVentas =
+                analisis.Categorias.Count;
 
-            respuesta.CategoriasSinVentas =
-                respuesta.Categorias.Count(
-                    c => c.IdCategoria > 0 &&
-                         c.UnidadesVendidas == 0);
+            analisis.CategoriasSinVentas = 0;
 
-            return respuesta;
+            return analisis;
         }
 
-        // ==================================================
-        // REPORTE: PRODUCTOS
-        // ==================================================
+        // =====================================================
+        // 8. REPORTE DE PRODUCTOS
+        // =====================================================
 
         /// <summary>
-        /// Permite consultar todos los productos
-        /// o uno específico mediante su ID.
+        /// Muestra exclusivamente los productos vendidos.
+        ///
+        /// Desaparecen:
+        /// - Movimiento sin venta.
+        /// - Solo movimientos.
+        /// - Productos sin ventas.
         /// </summary>
         private VistaReporte ReporteProductos(
             DateTime desde,
@@ -857,62 +926,69 @@ namespace Negocio
                 ObtenerAnalisisProductosCategorias(
                     desde, hasta, null);
 
-            List<ReporteProducto> lista =
+            List<ReporteProducto> productos =
                 analisis.Productos
+
                 .Where(p =>
                     id == 0 || p.IdProducto == id)
+
                 .ToList();
 
             VistaReporte vista = new VistaReporte
             {
                 Seccion = "Productos",
-                TituloGrafico1 = "Unidades por producto",
-                TituloGrafico2 = "Facturación por producto",
+
+                TituloGrafico1 =
+                    "Unidades vendidas por producto",
+
+                TituloGrafico2 =
+                    "Facturación por producto",
+
                 Grafico1EsCantidad = true
             };
 
             vista.Detalle = Tabla(
                 "Producto",
                 "Categoría",
-                "Unidades",
+                "Unidades vendidas",
                 "Facturación",
-                "Participación",
-                "Stock actual");
+                "Participación");
 
-            foreach (ReporteProducto producto in lista)
+            foreach (ReporteProducto p in productos)
             {
                 vista.Detalle.Rows.Add(
-                    producto.NombreProducto,
-                    producto.NombreCategoria,
-                    Numero(producto.UnidadesVendidas),
-                    Moneda(producto.FacturacionTotal),
+                    p.NombreProducto,
+
+                    p.NombreCategoria,
+
+                    Numero(p.UnidadesVendidas),
+
+                    Moneda(p.FacturacionTotal),
+
                     Porcentaje(
-                        producto.PorcentajeFacturacion),
-                    producto.EstaEnCatalogoActivo
-                        ? Numero(producto.StockActual)
-                        : "Sin dato actual");
+                        p.PorcentajeFacturacion));
             }
 
-            foreach (ReporteProducto producto in lista
+            foreach (ReporteProducto p in productos
                 .OrderByDescending(
                     p => p.UnidadesVendidas)
                 .Take(7))
             {
                 vista.PuntosGrafico1.Add(
                     Punto(
-                        producto.NombreProducto,
-                        producto.UnidadesVendidas));
+                        p.NombreProducto,
+                        p.UnidadesVendidas));
             }
 
-            foreach (ReporteProducto producto in lista
+            foreach (ReporteProducto p in productos
                 .OrderByDescending(
                     p => p.FacturacionTotal)
                 .Take(7))
             {
                 vista.PuntosGrafico2.Add(
                     Punto(
-                        producto.NombreProducto,
-                        producto.FacturacionTotal));
+                        p.NombreProducto,
+                        p.FacturacionTotal));
             }
 
             if (id == 0)
@@ -922,92 +998,99 @@ namespace Negocio
 
                 vista.TitulosIndicadores = new[]
                 {
-                    "FACTURACIÓN",
                     "PRODUCTOS VENDIDOS",
-                    "UNIDADES",
-                    "SIN VENTAS",
-                    "LÍDER ($)",
+                    "FACTURACIÓN TOTAL",
+                    "UNIDADES VENDIDAS",
+                    "PROMEDIO POR PRODUCTO",
+                    "PRODUCTO LÍDER",
                     "PARTICIPACIÓN LÍDER"
                 };
 
                 vista.ValoresIndicadores = new[]
                 {
+                    Numero(analisis.Productos.Count),
+
                     Moneda(analisis.FacturacionTotal),
-                    Numero(analisis.ProductosConVentas),
+
                     Numero(analisis.UnidadesVendidas),
-                    Numero(analisis.ProductosSinVentas),
 
-                    Moneda(lider == null
-                        ? 0m
-                        : lider.FacturacionTotal),
+                    Moneda(
+                        analisis.Productos.Count > 0
+                        ? analisis.FacturacionTotal /
+                          analisis.Productos.Count
+                        : 0m),
 
-                    Porcentaje(lider == null
+                    lider == null
+                        ? "-"
+                        : lider.NombreProducto,
+
+                    Porcentaje(
+                        lider == null
                         ? 0m
                         : lider.PorcentajeFacturacion)
                 };
             }
             else
             {
-                ReporteProducto producto =
-                    lista.FirstOrDefault();
+                ReporteProducto p =
+                    productos.FirstOrDefault();
 
                 vista.TitulosIndicadores = new[]
                 {
-                    "FACTURACIÓN PRODUCTO",
-                    "UNIDADES",
+                    "FACTURACIÓN",
+                    "UNIDADES VENDIDAS",
                     "PARTICIPACIÓN",
-                    "STOCK ACTUAL",
+                    "INGRESO POR UNIDAD",
                     "CATEGORÍA",
-                    "EN CATÁLOGO ACTIVO"
+                    "PRODUCTO"
                 };
 
-                vista.ValoresIndicadores =
-                    producto == null
+                vista.ValoresIndicadores = p == null
                     ? new[]
                     {
                         "$ 0,00",
                         "0",
                         "0 %",
-                        "Sin datos",
-                        "Sin datos",
-                        "No"
+                        "$ 0,00",
+                        "-",
+                        "Sin ventas"
                     }
                     : new[]
                     {
-                        Moneda(producto.FacturacionTotal),
+                        Moneda(p.FacturacionTotal),
 
-                        Numero(producto.UnidadesVendidas),
+                        Numero(p.UnidadesVendidas),
 
                         Porcentaje(
-                            producto.PorcentajeFacturacion),
+                            p.PorcentajeFacturacion),
 
-                        producto.EstaEnCatalogoActivo
-                            ? Numero(producto.StockActual)
-                            : "Sin dato",
+                        Moneda(
+                            p.FacturacionTotal /
+                            p.UnidadesVendidas),
 
-                        producto.NombreCategoria,
+                        p.NombreCategoria,
 
-                        producto.EstaEnCatalogoActivo
-                            ? "Sí"
-                            : "No"
+                        p.NombreProducto
                     };
             }
 
             vista.Aviso =
-                "Las ventas históricas se calculan " +
-                "con los subtotales registrados. " +
-                "Catálogo: productos activos.";
+                "Se muestran solamente productos vendidos " +
+                "entre " +
+                desde.ToString("dd/MM/yyyy") +
+                " y " +
+                hasta.ToString("dd/MM/yyyy") + ".";
 
             return vista;
         }
 
-        // ==================================================
-        // REPORTE: CATEGORÍAS
-        // ==================================================
+        // =====================================================
+        // 9. REPORTE DE CATEGORÍAS
+        // =====================================================
 
         /// <summary>
-        /// Filtra las estadísticas por una categoría
-        /// concreta, no por vendedor.
+        /// Agrupa las ventas por categoría.
+        /// Excluye categorías sin productos vendidos.
         /// </summary>
         private VistaReporte ReporteCategorias(
             DateTime desde,
@@ -1018,46 +1101,57 @@ namespace Negocio
                 ObtenerAnalisisProductosCategorias(
                     desde, hasta, null);
 
-            List<ReporteCategoria> lista =
+            List<ReporteCategoria> categorias =
                 analisis.Categorias
+
                 .Where(c =>
                     id == 0 || c.IdCategoria == id)
+
                 .ToList();
 
             VistaReporte vista = new VistaReporte
             {
                 Seccion = "Categorías",
-                TituloGrafico1 = "Unidades por categoría",
-                TituloGrafico2 = "Facturación por categoría",
+
+                TituloGrafico1 =
+                    "Unidades vendidas por categoría",
+
+                TituloGrafico2 =
+                    "Facturación por categoría",
+
                 Grafico1EsCantidad = true
             };
 
             vista.Detalle = Tabla(
                 "Categoría",
                 "Productos vendidos",
-                "Unidades",
+                "Unidades vendidas",
                 "Facturación",
                 "Participación");
 
-            foreach (ReporteCategoria categoria in lista)
+            foreach (ReporteCategoria c in categorias)
             {
                 vista.Detalle.Rows.Add(
-                    categoria.NombreCategoria,
-                    Numero(categoria.ProductosConVentas),
-                    Numero(categoria.UnidadesVendidas),
-                    Moneda(categoria.FacturacionTotal),
+                    c.NombreCategoria,
+
+                    Numero(c.ProductosConVentas),
+
+                    Numero(c.UnidadesVendidas),
+
+                    Moneda(c.FacturacionTotal),
+
                     Porcentaje(
-                        categoria.PorcentajeFacturacion));
+                        c.PorcentajeFacturacion));
 
                 vista.PuntosGrafico1.Add(
                     Punto(
-                        categoria.NombreCategoria,
-                        categoria.UnidadesVendidas));
+                        c.NombreCategoria,
+                        c.UnidadesVendidas));
 
                 vista.PuntosGrafico2.Add(
                     Punto(
-                        categoria.NombreCategoria,
-                        categoria.FacturacionTotal));
+                        c.NombreCategoria,
+                        c.FacturacionTotal));
             }
 
             if (id == 0)
@@ -1067,230 +1161,106 @@ namespace Negocio
 
                 vista.TitulosIndicadores = new[]
                 {
-                    "FACTURACIÓN",
                     "CATEGORÍAS CON VENTAS",
-                    "UNIDADES",
-                    "CATEGORÍAS SIN VENTAS",
+                    "FACTURACIÓN TOTAL",
+                    "UNIDADES VENDIDAS",
+                    "PROMEDIO POR CATEGORÍA",
                     "CATEGORÍA LÍDER",
                     "PARTICIPACIÓN LÍDER"
                 };
 
                 vista.ValoresIndicadores = new[]
                 {
+                    Numero(analisis.Categorias.Count),
+
                     Moneda(analisis.FacturacionTotal),
-                    Numero(analisis.CategoriasConVentas),
+
                     Numero(analisis.UnidadesVendidas),
-                    Numero(analisis.CategoriasSinVentas),
+
+                    Moneda(
+                        analisis.Categorias.Count > 0
+                        ? analisis.FacturacionTotal /
+                          analisis.Categorias.Count
+                        : 0m),
 
                     lider == null
                         ? "-"
                         : lider.NombreCategoria,
 
-                    Porcentaje(lider == null
+                    Porcentaje(
+                        lider == null
                         ? 0m
                         : lider.PorcentajeFacturacion)
                 };
             }
             else
             {
-                ReporteCategoria categoria =
-                    lista.FirstOrDefault();
+                ReporteCategoria c =
+                    categorias.FirstOrDefault();
 
                 vista.TitulosIndicadores = new[]
                 {
                     "FACTURACIÓN CATEGORÍA",
-                    "UNIDADES",
+                    "UNIDADES VENDIDAS",
                     "PRODUCTOS VENDIDOS",
                     "PARTICIPACIÓN",
                     "CATEGORÍA",
                     "PERÍODO"
                 };
 
-                vista.ValoresIndicadores =
-                    categoria == null
+                vista.ValoresIndicadores = c == null
                     ? new[]
                     {
-                        "$ 0,00", "0", "0",
-                        "0 %", "-", "-"
+                        "$ 0,00",
+                        "0",
+                        "0",
+                        "0 %",
+                        "-",
+                        "-"
                     }
                     : new[]
                     {
-                        Moneda(categoria.FacturacionTotal),
-                        Numero(categoria.UnidadesVendidas),
-                        Numero(categoria.ProductosConVentas),
+                        Moneda(c.FacturacionTotal),
+
+                        Numero(c.UnidadesVendidas),
+
+                        Numero(c.ProductosConVentas),
 
                         Porcentaje(
-                            categoria.PorcentajeFacturacion),
+                            c.PorcentajeFacturacion),
 
-                        categoria.NombreCategoria,
+                        c.NombreCategoria,
 
                         desde.ToString("dd/MM") +
-                        " - " + hasta.ToString("dd/MM")
+                        " - " +
+                        hasta.ToString("dd/MM")
                     };
             }
 
             vista.Aviso =
-                "La participación de cada categoría " +
-                "corresponde a todas las ventas de " +
-                "productos del período.";
+                "Se incluyen únicamente categorías " +
+                "con ventas durante el período.";
 
             return vista;
         }
 
-        // ==================================================
-        // REPORTE: STOCK
-        // ==================================================
+        // =====================================================
+        // 10. REPORTE DE SOLICITUDES
+        // =====================================================
+
 
         /// <summary>
-        /// Consulta el stock actual y calcula:
-        /// - Productos disponibles.
-        /// - Unidades existentes.
-        /// - Productos sin stock.
-        /// - Productos con stock bajo.
-        /// - Valor estimado a precio de venta.
+        /// Genera el reporte de solicitudes de stock.
         ///
-        /// IMPORTANTE: el stock actual no es un
-        /// historial de inventario.
-        /// </summary>
-        private VistaReporte ReporteStock(
-            DateTime desde,
-            DateTime hasta,
-            int id)
-        {
-            List<Producto> todos = datosStock.Listar();
-
-            List<Producto> seleccion =
-                todos.Where(p =>
-                    id == 0 || p.IdProducto == id)
-                .ToList();
-
-            VistaReporte vista = new VistaReporte
-            {
-                Seccion = "Stock",
-                TituloGrafico1 =
-                    "Unidades actuales por producto",
-                TituloGrafico2 =
-                    "Unidades por categoría",
-                Grafico1EsCantidad = true,
-                Grafico2EsCantidad = true
-            };
-
-            vista.TitulosIndicadores = new[]
-            {
-                "PRODUCTOS",
-                "UNIDADES EN STOCK",
-                "SIN STOCK",
-                "STOCK BAJO (1-5)",
-                "MAYOR EXISTENCIA",
-                "VALOR A PRECIO VENTA"
-            };
-
-            int maximo = seleccion.Count == 0
-                ? 0
-                : seleccion.Max(p => p.Stock);
-
-            decimal valor =
-                seleccion.Sum(p => p.Stock * p.Precio);
-
-            vista.ValoresIndicadores = new[]
-            {
-                Numero(seleccion.Count),
-                Numero(seleccion.Sum(p => p.Stock)),
-                Numero(seleccion.Count(p => p.Stock == 0)),
-
-                Numero(seleccion.Count(p =>
-                    p.Stock > 0 && p.Stock <= 5)),
-
-                Numero(maximo),
-                Moneda(valor)
-            };
-
-            vista.Detalle = Tabla(
-                "Producto",
-                "Categoría",
-                "Stock",
-                "Precio de venta",
-                "Valor estimado",
-                "Estado");
-
-            foreach (Producto producto in
-                seleccion.OrderBy(p => p.Stock))
-            {
-                vista.Detalle.Rows.Add(
-                    producto.Nombre,
-
-                    producto.oCategoria == null
-                        ? ""
-                        : producto.oCategoria.Nombre,
-
-                    Numero(producto.Stock),
-                    Moneda(producto.Precio),
-                    Moneda(producto.Stock * producto.Precio),
-
-                    producto.Stock == 0
-                        ? "SIN STOCK"
-                        : producto.Stock <= 5
-                            ? "BAJO"
-                            : "NORMAL");
-            }
-
-            foreach (Producto producto in
-                seleccion
-                .OrderByDescending(p => p.Stock)
-                .Take(7))
-            {
-                vista.PuntosGrafico1.Add(
-                    Punto(
-                        producto.Nombre,
-                        producto.Stock));
-            }
-
-            foreach (var grupo in seleccion
-                .GroupBy(p =>
-                    p.oCategoria == null
-                        ? "Sin categoría"
-                        : p.oCategoria.Nombre)
-                .OrderByDescending(g =>
-                    g.Sum(p => p.Stock))
-                .Take(7))
-            {
-                vista.PuntosGrafico2.Add(
-                    Punto(
-                        grupo.Key,
-                        grupo.Sum(p => p.Stock)));
-            }
-
-            string mensaje;
-
-            DataTable movimientos =
-                ObtenerReporteMovimientosStock(
-                    desde, hasta, out mensaje);
-
-            vista.Aviso =
-                "Stock actual, no histórico. " +
-                "Solicitudes recuperadas en el período: " +
-                movimientos.Rows.Count + ".";
-
-            if (!string.IsNullOrWhiteSpace(mensaje))
-            {
-                vista.Aviso +=
-                    " Movimientos no disponibles: " + mensaje;
-            }
-
-            return vista;
-        }
-
-        // ==================================================
-        // REPORTE: SOLICITUDES
-        // ==================================================
-
-        /// <summary>
-        /// Combina las solicitudes pendientes actuales
-        /// y los movimientos recuperados por el
-        /// procedimiento almacenado existente.
+        /// Recupera:
+        /// 1. Las solicitudes pendientes actuales.
+        /// 2. Todas las filas devueltas por el procedimiento
+        ///    existente SP_ReporteMovimientosStock.
         ///
-        /// No afirma que los datos sean un historial
-        /// completo de todas las solicitudes.
+        /// No descarta registros por estados desconocidos
+        /// ni por fechas que no puedan interpretarse.
+        ///
+        /// No modifica datos ni ejecuta SQL directamente.
         /// </summary>
         private VistaReporte ReporteSolicitudes(
             DateTime desde,
@@ -1300,211 +1270,389 @@ namespace Negocio
             VistaReporte vista = new VistaReporte
             {
                 Seccion = "Solicitudes",
+
                 TituloGrafico1 =
-                    "Solicitudes recuperadas por estado",
+                    "Solicitudes por estado",
+
                 TituloGrafico2 =
                     "Unidades solicitadas por tipo",
+
                 Grafico1EsCantidad = true,
                 Grafico2EsCantidad = true
             };
 
-            var pendientes =
+            vista.Detalle = Tabla(
+                "N° solicitud",
+                "Fecha",
+                "Producto",
+                "Tipo",
+                "Cantidad",
+                "Estado",
+                "Motivo"
+            );
+
+            // Se usa DateTime? para permitir fechas nulas
+            // sin inventar una fecha de solicitud.
+            var registros = new List<Tuple<
+                int,
+                DateTime?,
+                string,
+                string,
+                int,
+                string,
+                string>>();
+
+            // =================================================
+            // 1. SOLICITUDES PENDIENTES
+            // =================================================
+
+            // Se recuperan todas las pendientes actuales.
+            // No se descartan por fecha.
+            List<SolicitudStock> pendientes =
                 datosSolicitudes.ListarPendientes();
 
-            vista.Detalle = Tabla(
-                "ID", "Fecha", "Producto", "Tipo",
-                "Cantidad", "Estado", "Motivo");
-
-            var filas =
-                new List<Tuple<
-                    int, DateTime, string, string,
-                    int, string, string>>();
-
-            foreach (SolicitudStock solicitud in pendientes
-                .Where(s =>
-                    s.FechaSolicitud.Date >= desde.Date &&
-                    s.FechaSolicitud.Date <= hasta.Date))
+            foreach (SolicitudStock solicitud in pendientes)
             {
-                filas.Add(Tuple.Create(
+                registros.Add(Tuple.Create(
                     solicitud.IdSolicitud,
-                    solicitud.FechaSolicitud,
 
-                    solicitud.oProducto == null
-                        ? ""
-                        : solicitud.oProducto.Nombre,
+                    (DateTime?)solicitud.FechaSolicitud,
 
-                    solicitud.TipoMovimiento,
+                    solicitud.oProducto != null
+                        ? solicitud.oProducto.Nombre
+                        : "Producto no identificado",
+
+                    solicitud.TipoMovimiento ?? "",
+
                     solicitud.Cantidad,
+
                     "PENDIENTE",
-                    solicitud.Motivo));
+
+                    solicitud.Motivo ?? ""
+                ));
             }
 
-            string mensaje;
+            // =================================================
+            // 2. CONSULTAR MOVIMIENTOS EXISTENTES
+            // =================================================
+
+            string mensajeMovimientos;
 
             DataTable movimientos =
                 ObtenerReporteMovimientosStock(
-                    desde, hasta, out mensaje);
+                    desde,
+                    hasta,
+                    out mensajeMovimientos
+                );
 
-            foreach (DataRow fila in movimientos.Rows)
+            int cantidadMovimientos =
+                movimientos == null
+                    ? 0
+                    : movimientos.Rows.Count;
+
+            // Evita duplicar solicitudes con ID válido.
+            HashSet<int> idsAgregados = new HashSet<int>(
+                registros
+                    .Where(r => r.Item1 > 0)
+                    .Select(r => r.Item1)
+            );
+
+            if (movimientos != null)
             {
-                int identificador =
-                    Entero(fila, "IdSolicitud");
-
-                if (filas.Any(f =>
-                    f.Item1 == identificador))
-                    continue;
-
-                DateTime fecha;
-
-                if (!DateTime.TryParse(
-                    Texto(fila, "fecha_solicitud"),
-                    out fecha))
+                foreach (DataRow fila in movimientos.Rows)
                 {
-                    fecha = desde;
-                }
+                    // Nombres reales que devuelve el
+                    // procedimiento almacenado del proyecto.
+                    int idSolicitud =
+                        Entero(fila, "IdSolicitud");
 
-                filas.Add(Tuple.Create(
-                    identificador,
-                    fecha,
-                    Texto(fila, "Producto"),
-                    Texto(fila, "TipoMovimiento"),
-                    Entero(fila, "Cantidad"),
-                    Texto(fila, "Estado").ToUpperInvariant(),
-                    Texto(fila, "Motivo")));
+                    if (idSolicitud > 0 &&
+                        idsAgregados.Contains(idSolicitud))
+                    {
+                        continue;
+                    }
+
+                    string producto =
+                        Texto(fila, "Producto");
+
+                    string tipo =
+                        Texto(fila, "TipoMovimiento");
+
+                    int cantidad =
+                        Entero(fila, "Cantidad");
+
+                    string motivo =
+                        Texto(fila, "Motivo");
+
+                    string estado =
+                        Texto(fila, "Estado")
+                        .Trim()
+                        .ToUpperInvariant();
+
+                    // Normalizamos los estados conocidos,
+                    // pero NO descartamos otros estados.
+                    if (estado == "APROBADO")
+                    {
+                        estado = "APROBADA";
+                    }
+                    else if (estado == "RECHAZADO")
+                    {
+                        estado = "RECHAZADA";
+                    }
+                    else if (string.IsNullOrWhiteSpace(estado))
+                    {
+                        estado = "SIN ESTADO";
+                    }
+
+                    // El procedimiento devuelve la columna
+                    // fecha_solicitud. Si una fecha no puede
+                    // leerse, se conserva igualmente la fila.
+                    DateTime fechaLeida;
+                    DateTime? fechaSolicitud = null;
+
+                    if (DateTime.TryParse(
+                        Texto(fila, "fecha_solicitud"),
+                        out fechaLeida))
+                    {
+                        fechaSolicitud = fechaLeida;
+                    }
+
+                    registros.Add(Tuple.Create(
+                        idSolicitud,
+
+                        fechaSolicitud,
+
+                        producto,
+
+                        tipo,
+
+                        cantidad,
+
+                        estado,
+
+                        motivo
+                    ));
+
+                    if (idSolicitud > 0)
+                    {
+                        idsAgregados.Add(idSolicitud);
+                    }
+                }
             }
 
-            var elegidos = filas
-                .Where(f =>
+            // =================================================
+            // 3. FILTRAR POR ESTADO
+            // =================================================
+
+            // El filtro "Todos los estados" muestra todas
+            // las filas, incluso las de estado no reconocido.
+            var seleccionadas = registros
+                .Where(r =>
                     filtro == 0 ||
                     (filtro == 1 &&
-                     f.Item6 == "PENDIENTE") ||
+                     r.Item6 == "PENDIENTE") ||
                     (filtro == 2 &&
-                     f.Item6 == "APROBADA") ||
+                     r.Item6 == "APROBADA") ||
                     (filtro == 3 &&
-                     f.Item6 == "RECHAZADA"))
-                .OrderByDescending(f => f.Item2)
+                     r.Item6 == "RECHAZADA")
+                )
+                .OrderByDescending(r => r.Item2)
                 .ToList();
 
-            foreach (var fila in elegidos)
+            // =================================================
+            // 4. TABLA DE RESULTADOS
+            // =================================================
+
+            foreach (var solicitud in seleccionadas)
             {
+                string fechaTexto =
+                    solicitud.Item2.HasValue
+                        ? solicitud.Item2.Value.ToString(
+                            "dd/MM/yyyy")
+                        : "Sin fecha";
+
                 vista.Detalle.Rows.Add(
-                    fila.Item1.ToString(),
-                    fila.Item2.ToString("dd/MM/yyyy"),
-                    fila.Item3,
-                    fila.Item4,
-                    Numero(fila.Item5),
-                    fila.Item6,
-                    fila.Item7);
+                    solicitud.Item1 > 0
+                        ? solicitud.Item1.ToString()
+                        : "-",
+
+                    fechaTexto,
+
+                    solicitud.Item3,
+
+                    solicitud.Item4,
+
+                    Numero(solicitud.Item5),
+
+                    solicitud.Item6,
+
+                    solicitud.Item7
+                );
             }
 
-            int pendientesN =
-                elegidos.Count(f =>
-                    f.Item6 == "PENDIENTE");
+            // =================================================
+            // 5. INDICADORES ESTADÍSTICOS
+            // =================================================
 
-            int aprobadas =
-                elegidos.Count(f =>
-                    f.Item6 == "APROBADA");
+            int total = seleccionadas.Count;
 
-            int rechazadas =
-                elegidos.Count(f =>
-                    f.Item6 == "RECHAZADA");
+            int totalPendientes =
+                seleccionadas.Count(r =>
+                    r.Item6 == "PENDIENTE");
+
+            int totalAprobadas =
+                seleccionadas.Count(r =>
+                    r.Item6 == "APROBADA");
+
+            int totalRechazadas =
+                seleccionadas.Count(r =>
+                    r.Item6 == "RECHAZADA");
+
+            int unidades =
+                seleccionadas.Sum(r => r.Item5);
+
+            string tipoMasFrecuente =
+                seleccionadas
+                    .Where(r =>
+                        !string.IsNullOrWhiteSpace(r.Item4))
+                    .GroupBy(r => r.Item4)
+                    .OrderByDescending(g => g.Count())
+                    .Select(g => g.Key)
+                    .FirstOrDefault() ?? "-";
 
             vista.TitulosIndicadores = new[]
             {
-                "RECUPERADAS",
+                "SOLICITUDES CONSULTADAS",
                 "PENDIENTES",
-                "APROBADAS RECUPERADAS",
-                "RECHAZADAS RECUPERADAS",
+                "APROBADAS",
+                "RECHAZADAS",
                 "UNIDADES SOLICITADAS",
                 "TIPO MÁS FRECUENTE"
             };
 
-            string tipo = elegidos
-                .GroupBy(f => f.Item4)
-                .OrderByDescending(g => g.Count())
-                .Select(g => g.Key)
-                .FirstOrDefault() ?? "-";
-
             vista.ValoresIndicadores = new[]
             {
-                Numero(elegidos.Count),
-                Numero(pendientesN),
-                Numero(aprobadas),
-                Numero(rechazadas),
+                Numero(total),
 
-                Numero(elegidos.Sum(f => f.Item5)),
-                tipo
+                Numero(totalPendientes),
+
+                Numero(totalAprobadas),
+
+                Numero(totalRechazadas),
+
+                Numero(unidades),
+
+                tipoMasFrecuente
             };
 
-            foreach (var grupo in elegidos
-                .GroupBy(f => f.Item6))
+            // =================================================
+            // 6. GRÁFICOS
+            // =================================================
+
+            foreach (var grupo in seleccionadas
+                .GroupBy(r => r.Item6))
             {
                 vista.PuntosGrafico1.Add(
-                    Punto(grupo.Key, grupo.Count()));
+                    Punto(
+                        grupo.Key,
+                        grupo.Count()
+                    )
+                );
             }
 
-            foreach (var grupo in elegidos
-                .GroupBy(f => f.Item4))
+            foreach (var grupo in seleccionadas
+                .Where(r =>
+                    !string.IsNullOrWhiteSpace(r.Item4))
+                .GroupBy(r => r.Item4))
             {
                 vista.PuntosGrafico2.Add(
                     Punto(
                         grupo.Key,
-                        grupo.Sum(f => f.Item5)));
+                        grupo.Sum(r => r.Item5)
+                    )
+                );
             }
 
-            vista.Aviso =
-                "Pendientes actuales + resoluciones " +
-                "recuperadas por el procedimiento existente; " +
-                "no equivale a un historial completo.";
+            // =================================================
+            // 7. INFORMACIÓN Y CONTROL
+            // =================================================
 
-            if (!string.IsNullOrWhiteSpace(mensaje))
-                vista.Aviso += " Movimientos: " + mensaje;
+            vista.Aviso =
+                "Solicitudes pendientes actuales y " +
+                "movimientos del período consultado.";
+
+            // Por ahora conservamos el diagnóstico
+            // para comprobar las consultas.
+            vista.Aviso +=
+                " Pendientes: " + pendientes.Count +
+                " | Movimientos: " + cantidadMovimientos +
+                " | Mostradas: " + total + ".";
+
+            if (!string.IsNullOrWhiteSpace(mensajeMovimientos))
+            {
+                vista.Aviso +=
+                    " Error al consultar movimientos: " +
+                    mensajeMovimientos;
+            }
+
+            if (total == 0 &&
+                string.IsNullOrWhiteSpace(mensajeMovimientos))
+            {
+                vista.Aviso +=
+                    " No se encontraron solicitudes " +
+                    "con los filtros seleccionados.";
+            }
 
             return vista;
         }
 
-        // ==================================================
-        // REPORTE: VENDEDORES
-        // ==================================================
+
+        // =====================================================
+        // 11. COMPETENCIA ENTRE VENDEDORES
+        // =====================================================
 
         /// <summary>
-        /// Reúne las ventas de cada usuario vendedor.
-        /// Calcula operaciones, facturación y promedio.
+        /// Compara a los vendedores que realizaron ventas.
+        ///
+        /// La competencia se ordena por:
+        /// 1. Mayor facturación.
+        /// 2. Mayor cantidad de operaciones.
+        /// 3. Apellido y nombre, para desempatar.
+        ///
+        /// Calcula ranking, ticket promedio,
+        /// participación y distancia con el líder.
+        ///
+        /// Al seleccionar un vendedor, los gráficos
+        /// continúan mostrando a todos para permitir
+        /// una comparación real.
         /// </summary>
         private VistaReporte ReporteVendedores(
             DateTime desde,
             DateTime hasta,
             int id)
         {
-            List<Usuario> vendedores =
+            List<Usuario> usuarios =
                 datosUsuarios.Listar()
-                .Where(u =>
-                    u.IdRol == 2 &&
-                    (id == 0 || u.IdUsuario == id))
+
+                .Where(u => u.IdRol == 2)
+
+                .OrderBy(u => u.Apellido)
+
+                .ThenBy(u => u.Nombre)
+
                 .ToList();
 
-            VistaReporte vista = new VistaReporte
-            {
-                Seccion = "Vendedores",
-                TituloGrafico1 =
-                    "Operaciones por vendedor",
-                TituloGrafico2 =
-                    "Facturación por vendedor",
-                Grafico1EsCantidad = true
-            };
+            List<DetalleVentaAnalisis> detalles =
+                datos.ObtenerDetallesVentasAnalisis(
+                    desde, hasta, null);
 
-            vista.Detalle = Tabla(
-                "Vendedor",
-                "Operaciones",
-                "Facturación",
-                "Ticket promedio");
+            // Cada fila contiene:
+            // Usuario, facturación, ventas y unidades.
+            var participantes =
+                new List<Tuple<
+                    Usuario, decimal, int, int>>();
 
-            decimal total = 0m;
-            int cantidad = 0;
-            decimal mejor = 0m;
-            string lider = "-";
-
-            foreach (Usuario usuario in vendedores)
+            foreach (Usuario usuario in usuarios)
             {
                 List<ReporteVenta> ventas =
                     ObtenerVentasAnalisis(
@@ -1512,87 +1660,282 @@ namespace Negocio
                         hasta,
                         usuario.IdUsuario);
 
-                decimal importe =
-                    ventas.Sum(v => v.Total);
+                if (ventas.Count == 0)
+                    continue;
 
-                int operaciones = ventas.Count;
+                participantes.Add(
+                    Tuple.Create(
+                        usuario,
+
+                        ventas.Sum(v => v.Total),
+
+                        ventas.Count,
+
+                        detalles
+                            .Where(d =>
+                                d.IdUsuario ==
+                                usuario.IdUsuario)
+                            .Sum(d => d.Cantidad)));
+            }
+
+            // Ranking competitivo por facturación.
+            var ranking = participantes
+
+                .OrderByDescending(v => v.Item2)
+
+                .ThenByDescending(v => v.Item3)
+
+                .ThenBy(v => v.Item1.Apellido)
+
+                .ThenBy(v => v.Item1.Nombre)
+
+                .ToList();
+
+            decimal totalFacturado =
+                ranking.Sum(v => v.Item2);
+
+            decimal importeLider =
+                ranking.Count > 0
+                    ? ranking[0].Item2
+                    : 0m;
+
+            decimal promedioFacturacion =
+                ranking.Count > 0
+                    ? totalFacturado / ranking.Count
+                    : 0m;
+
+            VistaReporte vista = new VistaReporte
+            {
+                Seccion = "Vendedores",
+
+                TituloGrafico1 =
+                    "COMPETENCIA: facturación por vendedor",
+
+                TituloGrafico2 =
+                    "COMPETENCIA: ventas realizadas",
+
+                Grafico2EsCantidad = true
+            };
+
+            vista.Detalle = Tabla(
+                "Puesto",
+                "Vendedor",
+                "Ventas",
+                "Unidades",
+                "Facturación",
+                "Ticket promedio",
+                "% del total",
+                "Detrás del líder");
+
+            for (int i = 0; i < ranking.Count; i++)
+            {
+                var vendedor = ranking[i];
+
+                string nombre =
+                    vendedor.Item1.Apellido +
+                    ", " +
+                    vendedor.Item1.Nombre;
+
+                decimal ticket =
+                    vendedor.Item3 > 0
+                        ? vendedor.Item2 /
+                          vendedor.Item3
+                        : 0m;
+
+                decimal distancia =
+                    importeLider - vendedor.Item2;
+
+                string puesto =
+                    (i + 1).ToString() + "°";
+
+                if (i == 0)
+                    puesto += " LÍDER";
+
+                if (i == 1)
+                    puesto += " SEGUNDO";
+
+                if (i == 2)
+                    puesto += " TERCERO";
 
                 vista.Detalle.Rows.Add(
-                    usuario.Apellido + ", " + usuario.Nombre,
-                    Numero(operaciones),
-                    Moneda(importe),
+                    puesto,
 
-                    Moneda(operaciones == 0
-                        ? 0m
-                        : importe / operaciones));
+                    nombre,
 
+                    Numero(vendedor.Item3),
+
+                    Numero(vendedor.Item4),
+
+                    Moneda(vendedor.Item2),
+
+                    Moneda(ticket),
+
+                    Porcentaje(
+                        Participacion(
+                            vendedor.Item2,
+                            totalFacturado)),
+
+                    Moneda(distancia));
+
+                // El puesto aparece en el gráfico.
                 vista.PuntosGrafico1.Add(
                     Punto(
-                        usuario.Apellido + ", " +
-                        usuario.Nombre,
-                        operaciones));
+                        (i + 1) + "° " + nombre,
+                        vendedor.Item2));
 
                 vista.PuntosGrafico2.Add(
                     Punto(
-                        usuario.Apellido + ", " +
-                        usuario.Nombre,
-                        importe));
+                        (i + 1) + "° " + nombre,
+                        vendedor.Item3));
+            }
 
-                total += importe;
-                cantidad += operaciones;
+            // ---------------------------------------------
+            // TODOS: PODIO DE LOS TRES PRIMEROS
+            // ---------------------------------------------
 
-                if (importe > mejor)
+            if (id == 0)
+            {
+                string primero =
+                    ranking.Count > 0
+                    ? ranking[0].Item1.Apellido +
+                      ", " +
+                      ranking[0].Item1.Nombre
+                    : "-";
+
+                string segundo =
+                    ranking.Count > 1
+                    ? ranking[1].Item1.Apellido +
+                      ", " +
+                      ranking[1].Item1.Nombre
+                    : "Sin rival";
+
+                string tercero =
+                    ranking.Count > 2
+                    ? ranking[2].Item1.Apellido +
+                      ", " +
+                      ranking[2].Item1.Nombre
+                    : "Sin tercer puesto";
+
+                vista.TitulosIndicadores = new[]
                 {
-                    mejor = importe;
+                    "1° PUESTO - LÍDER",
+                    "2° PUESTO",
+                    "3° PUESTO",
+                    "FACTURACIÓN TOTAL",
+                    "DIFERENCIA 1° Y 2°",
+                    "VENDEDORES CON VENTAS"
+                };
 
-                    lider = usuario.Apellido +
-                        ", " + usuario.Nombre;
+                vista.ValoresIndicadores = new[]
+                {
+                    primero,
+
+                    segundo,
+
+                    tercero,
+
+                    Moneda(totalFacturado),
+
+                    ranking.Count > 1
+                        ? Moneda(
+                            importeLider -
+                            ranking[1].Item2)
+                        : "Sin rival",
+
+                    Numero(ranking.Count)
+                };
+            }
+            else
+            {
+                // -----------------------------------------
+                // VENDEDOR INDIVIDUAL: SU POSICIÓN
+                // -----------------------------------------
+
+                var elegido =
+                    ranking.FirstOrDefault(v =>
+                        v.Item1.IdUsuario == id);
+
+                int posicion =
+                    ranking.FindIndex(v =>
+                        v.Item1.IdUsuario == id);
+
+                vista.TitulosIndicadores = new[]
+                {
+                    "PUESTO EN EL RANKING",
+                    "FACTURACIÓN",
+                    "VENTAS REALIZADAS",
+                    "PARTICIPACIÓN",
+                    "DISTANCIA AL LÍDER",
+                    "VS PROMEDIO DE VENDEDORES"
+                };
+
+                if (elegido == null)
+                {
+                    vista.ValoresIndicadores = new[]
+                    {
+                        "Sin ventas",
+                        "$ 0,00",
+                        "0",
+                        "0 %",
+                        "-",
+                        "-"
+                    };
+                }
+                else
+                {
+                    decimal diferenciaPromedio =
+                        elegido.Item2 -
+                        promedioFacturacion;
+
+                    vista.ValoresIndicadores = new[]
+                    {
+                        (posicion + 1) +
+                        "° de " + ranking.Count,
+
+                        Moneda(elegido.Item2),
+
+                        Numero(elegido.Item3),
+
+                        Porcentaje(
+                            Participacion(
+                                elegido.Item2,
+                                totalFacturado)),
+
+                        Moneda(
+                            importeLider -
+                            elegido.Item2),
+
+                        (diferenciaPromedio >= 0m
+                            ? "+"
+                            : "-") +
+                        Moneda(
+                            Math.Abs(
+                                diferenciaPromedio))
+                    };
                 }
             }
 
-            vista.TitulosIndicadores = new[]
-            {
-                "VENDEDORES",
-                "OPERACIONES",
-                "FACTURACIÓN",
-                "TICKET PROMEDIO",
-                "MAYOR FACTURACIÓN",
-                "VENDEDOR LÍDER"
-            };
-
-            vista.ValoresIndicadores = new[]
-            {
-                Numero(vendedores.Count),
-                Numero(cantidad),
-                Moneda(total),
-
-                Moneda(cantidad == 0
-                    ? 0m
-                    : total / cantidad),
-
-                Moneda(mejor),
-                lider
-            };
-
             vista.Aviso =
-                "Se consideran los usuarios con rol Vendedor " +
-                "que aparecen en el catálogo activo.";
+                "Ranking por facturación del " +
+                desde.ToString("dd/MM/yyyy") +
+                " al " +
+                hasta.ToString("dd/MM/yyyy") +
+                ". Los gráficos comparan a todos " +
+                "los vendedores con ventas.";
 
             return vista;
         }
 
-        // ==================================================
-        // REPORTE: CLIENTES
-        // ==================================================
+        // =====================================================
+        // 12. REPORTE DE CLIENTES
+        // =====================================================
 
         /// <summary>
-        /// Recupera los clientes y procura relacionar
-        /// sus compras con el campo Cliente del reporte.
+        /// Mantiene la consulta de clientes.
         ///
-        /// Si el procedimiento no devuelve información
-        /// que pueda utilizarse, informa la limitación.
-        ///
-        /// No crea compras ni registros ficticios.
+        /// Se utilizan las compras que puedan
+        /// relacionarse con el campo Cliente
+        /// del reporte de ventas existente.
         /// </summary>
         private VistaReporte ReporteClientes(
             DateTime desde,
@@ -1604,17 +1947,22 @@ namespace Negocio
 
             List<Cliente> elegidos =
                 clientes
+
                 .Where(c =>
                     id == 0 || c.IdCliente == id)
+
                 .ToList();
 
             VistaReporte vista = new VistaReporte
             {
                 Seccion = "Clientes",
+
                 TituloGrafico1 =
                     "Compras por cliente",
+
                 TituloGrafico2 =
                     "Facturación por cliente",
+
                 Grafico1EsCantidad = true
             };
 
@@ -1640,85 +1988,98 @@ namespace Negocio
                 comprasDisponibles = false;
 
                 vista.Aviso =
-                    "El padrón de clientes está disponible, " +
-                    "pero SP_ReporteVentas no permitió " +
-                    "recuperar compras: " + ex.Message;
+                    "Se muestran los clientes, " +
+                    "pero no se pudieron consultar " +
+                    "las compras: " + ex.Message;
             }
 
             decimal total = 0m;
-            int operacionesTotal = 0;
-            int conCompras = 0;
+            int operaciones = 0;
+            int clientesConCompras = 0;
 
-            foreach (Cliente cliente in elegidos)
+            foreach (Cliente c in elegidos)
             {
                 List<ReporteVenta> compras =
                     comprasDisponibles
+
                     ? ventas.Where(v =>
-                        v.Cliente == cliente.IdCliente.ToString() ||
-                        v.Cliente == cliente.Nombre + " " +
-                            cliente.Apellido ||
-                        v.Cliente == cliente.Apellido + ", " +
-                            cliente.Nombre)
-                      .ToList()
+                        v.Cliente ==
+                            c.IdCliente.ToString() ||
+
+                        v.Cliente ==
+                            c.Nombre + " " +
+                            c.Apellido ||
+
+                        v.Cliente ==
+                            c.Apellido + ", " +
+                            c.Nombre)
+
+                        .ToList()
+
                     : new List<ReporteVenta>();
 
                 int cantidad = compras.Count;
 
-                decimal importe =
+                decimal facturacion =
                     compras.Sum(v => v.Total);
 
                 if (cantidad > 0)
-                    conCompras++;
+                    clientesConCompras++;
 
-                operacionesTotal += cantidad;
-                total += importe;
+                total += facturacion;
+                operaciones += cantidad;
+
+                string nombre =
+                    c.Apellido +
+                    ", " +
+                    c.Nombre;
 
                 vista.Detalle.Rows.Add(
-                    cliente.Apellido + ", " +
-                        cliente.Nombre,
+                    nombre,
 
-                    cliente.Dni.ToString(),
+                    c.Dni.ToString(),
 
                     comprasDisponibles
                         ? Numero(cantidad)
                         : "Sin dato",
 
                     comprasDisponibles
-                        ? Moneda(importe)
+                        ? Moneda(facturacion)
                         : "Sin dato",
 
                     comprasDisponibles
-                        ? Moneda(cantidad == 0
+                        ? Moneda(
+                            cantidad == 0
                             ? 0m
-                            : importe / cantidad)
+                            : facturacion / cantidad)
                         : "Sin dato");
 
                 if (comprasDisponibles)
                 {
                     vista.PuntosGrafico1.Add(
-                        Punto(
-                            cliente.Apellido + ", " +
-                            cliente.Nombre,
-                            cantidad));
+                        Punto(nombre, cantidad));
 
                     vista.PuntosGrafico2.Add(
-                        Punto(
-                            cliente.Apellido + ", " +
-                            cliente.Nombre,
-                            importe));
+                        Punto(nombre, facturacion));
                 }
             }
 
             vista.PuntosGrafico1 =
                 vista.PuntosGrafico1
+
                 .OrderByDescending(p => p.Valor)
+
                 .Take(7)
+
                 .ToList();
 
             vista.PuntosGrafico2 =
                 vista.PuntosGrafico2
+
                 .OrderByDescending(p => p.Valor)
+
                 .Take(7)
+
                 .ToList();
 
             vista.TitulosIndicadores = new[]
@@ -1736,11 +2097,11 @@ namespace Negocio
                 Numero(elegidos.Count),
 
                 comprasDisponibles
-                    ? Numero(conCompras)
+                    ? Numero(clientesConCompras)
                     : "Sin dato",
 
                 comprasDisponibles
-                    ? Numero(operacionesTotal)
+                    ? Numero(operaciones)
                     : "Sin dato",
 
                 comprasDisponibles
@@ -1748,22 +2109,24 @@ namespace Negocio
                     : "Sin dato",
 
                 comprasDisponibles
-                    ? Moneda(operacionesTotal == 0
+                    ? Moneda(
+                        operaciones == 0
                         ? 0m
-                        : total / operacionesTotal)
+                        : total / operaciones)
                     : "Sin dato",
 
                 comprasDisponibles
-                    ? Numero(elegidos.Count - conCompras)
+                    ? Numero(
+                        elegidos.Count -
+                        clientesConCompras)
                     : "Sin dato"
             };
 
             if (comprasDisponibles)
             {
                 vista.Aviso =
-                    "Compras vinculadas por el campo Cliente " +
-                    "de SP_ReporteVentas. " +
-                    "Las ventas sin cliente no se asignan.";
+                    "Ventas asociadas mediante el campo " +
+                    "Cliente del reporte existente.";
             }
 
             return vista;

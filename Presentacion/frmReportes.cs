@@ -18,34 +18,28 @@ namespace Aura_Beauty
     /// <summary>
     /// CENTRO DE REPORTES - CAPA PRESENTACIÓN.
     ///
-    /// Presenta siete secciones:
-    /// Ventas, Productos, Categorías, Stock,
+    /// Secciones:
+    /// Ventas, Productos, Categorías,
     /// Solicitudes, Vendedores y Clientes.
     ///
-    /// No ejecuta SQL ni calcula estadísticas comerciales.
-    /// Todos los resultados provienen de CN_Reporte.
+    /// Stock fue retirado del Centro de Reportes.
     ///
-    /// El selector cambia según la sección:
-    /// - Ventas: vendedor.
-    /// - Productos: producto.
-    /// - Categorías: categoría.
-    /// - Stock: producto.
-    /// - Solicitudes: estado.
-    /// - Vendedores: vendedor.
-    /// - Clientes: cliente.
+    /// Esta clase no realiza consultas SQL
+    /// ni calcula estadísticas comerciales.
+    /// Los resultados provienen de CN_Reporte.
     /// </summary>
     public partial class frmReportes : Form
     {
-        // ==================================================
+        // =====================================================
         // CAPA NEGOCIO
-        // ==================================================
+        // =====================================================
 
         private readonly CN_Reporte negocio =
             new CN_Reporte();
 
-        // ==================================================
-        // COLORES AURA BEAUTY
-        // ==================================================
+        // =====================================================
+        // COLORES
+        // =====================================================
 
         private readonly Color rosa =
             Color.FromArgb(195, 139, 147);
@@ -71,18 +65,21 @@ namespace Aura_Beauty
         private readonly Color rosaClaro =
             Color.FromArgb(245, 227, 229);
 
-        // ==================================================
-        // CONTROLES DEL FORMULARIO
-        // ==================================================
+        // =====================================================
+        // CONTROLES
+        // =====================================================
 
         private Panel panelLateral;
         private Panel panelPrincipal;
+
         private TableLayoutPanel contenido;
 
         private Label lblTituloSeccion;
         private Label lblNombreFiltro;
+
         private Label lblTituloGrafico1;
         private Label lblTituloGrafico2;
+
         private Label lblEstado;
 
         private DateTimePicker dtpDesde;
@@ -104,21 +101,21 @@ namespace Aura_Beauty
         private readonly Dictionary<string, Button> botones =
             new Dictionary<string, Button>();
 
-        // ==================================================
+        // =====================================================
         // ESTADO ACTUAL
-        // ==================================================
+        // =====================================================
 
         private string seccionActual = "Ventas";
 
         private VistaReporte ultimoReporte;
 
-        // ==================================================
+        // =====================================================
         // CONSTRUCTOR
-        // ==================================================
+        // =====================================================
 
         /// <summary>
-        /// Inicializa la pantalla sin ejecutar
-        /// automáticamente consultas de reportes.
+        /// Inicializa el formulario y prepara la
+        /// sección de Ventas.
         /// </summary>
         public frmReportes()
         {
@@ -141,11 +138,16 @@ namespace Aura_Beauty
             CrearInterfaz();
 
             PrepararSeccion("Ventas");
+
+            // Al cambiar fechas se actualizan los filtros
+            // para mostrar actividad del nuevo período.
+            dtpDesde.ValueChanged += FechasCambiadas;
+            dtpHasta.ValueChanged += FechasCambiadas;
         }
 
         /// <summary>
-        /// Evento conservado para mantener compatibilidad
-        /// con frmReportes.Designer.cs.
+        /// Evento conservado para compatibilidad
+        /// con el archivo Designer.
         /// </summary>
         private void frmReportes_Load(
             object sender,
@@ -153,18 +155,17 @@ namespace Aura_Beauty
         {
         }
 
-        // ==================================================
-        // ESTRUCTURA PRINCIPAL
-        // ==================================================
+        // =====================================================
+        // INTERFAZ PRINCIPAL
+        // =====================================================
 
         /// <summary>
-        /// Utiliza dos columnas independientes.
+        /// Divide el formulario en dos columnas.
         ///
-        /// La izquierda contiene el menú.
-        /// La derecha contiene los reportes.
+        /// Izquierda: menú lateral.
+        /// Derecha: contenido del dashboard.
         ///
-        /// Esta distribución evita que el menú lateral
-        /// tape las tarjetas, gráficos o filtros.
+        /// Esta estructura evita superposiciones.
         /// </summary>
         private void CrearInterfaz()
         {
@@ -266,15 +267,16 @@ namespace Aura_Beauty
             ResumeLayout(true);
         }
 
-        // ==================================================
+        // =====================================================
         // MENÚ LATERAL
-        // ==================================================
+        // =====================================================
 
         /// <summary>
-        /// Construye las siete opciones de reportes.
+        /// Crea las seis secciones disponibles.
+        /// No incluye el panel Stock.
         ///
-        /// El botón Volver al menú lo aporta frmMenu.
-        /// No se duplica dentro de este formulario.
+        /// Volver al menú permanece administrado
+        /// por frmMenu.
         /// </summary>
         private void CrearMenu()
         {
@@ -284,8 +286,11 @@ namespace Aura_Beauty
                 Location = new Point(24, 28),
                 Size = new Size(165, 48),
                 ForeColor = rosaOscuro,
+
                 Font = new Font(
-                    "Segoe UI", 24F, FontStyle.Bold)
+                    "Segoe UI",
+                    24F,
+                    FontStyle.Bold)
             });
 
             panelLateral.Controls.Add(new Label
@@ -294,8 +299,11 @@ namespace Aura_Beauty
                 Location = new Point(25, 82),
                 Size = new Size(175, 25),
                 ForeColor = gris,
+
                 Font = new Font(
-                    "Segoe UI", 8.5F, FontStyle.Bold)
+                    "Segoe UI",
+                    8.5F,
+                    FontStyle.Bold)
             });
 
             panelLateral.Controls.Add(new Panel
@@ -310,7 +318,6 @@ namespace Aura_Beauty
                 "Ventas",
                 "Productos",
                 "Categorías",
-                "Stock",
                 "Solicitudes",
                 "Vendedores",
                 "Clientes"
@@ -352,13 +359,12 @@ namespace Aura_Beauty
             }
         }
 
-        // ==================================================
+        // =====================================================
         // ENCABEZADO
-        // ==================================================
+        // =====================================================
 
         /// <summary>
-        /// Crea un encabezado compacto con el título
-        /// de la sección seleccionada.
+        /// Muestra el título del reporte activo.
         /// </summary>
         private void CrearEncabezado()
         {
@@ -371,48 +377,65 @@ namespace Aura_Beauty
             lblTituloSeccion = new Label
             {
                 Text = "Reportes de ventas",
+
                 Location = new Point(5, 12),
+
                 AutoSize = true,
+
                 ForeColor = texto,
+
                 Font = new Font(
-                    "Segoe UI", 21F, FontStyle.Bold)
+                    "Segoe UI",
+                    21F,
+                    FontStyle.Bold)
             };
 
-            encabezado.Controls.Add(lblTituloSeccion);
+            encabezado.Controls.Add(
+                lblTituloSeccion);
 
             encabezado.Controls.Add(new Label
             {
-                Text = "Análisis del rendimiento comercial",
+                Text =
+                    "Análisis del rendimiento comercial",
+
                 Location = new Point(7, 59),
+
                 AutoSize = true,
+
                 ForeColor = gris,
+
                 Font = new Font("Segoe UI", 10F)
             });
 
-            contenido.Controls.Add(encabezado, 0, 0);
+            contenido.Controls.Add(
+                encabezado, 0, 0);
         }
 
-        // ==================================================
+        // =====================================================
         // BARRA DE FILTROS
-        // ==================================================
+        // =====================================================
 
         /// <summary>
-        /// La primera fila contiene:
-        /// Desde, Hasta y un único selector contextual.
+        /// Primera fila:
+        /// Desde, Hasta y un selector contextual.
         ///
-        /// La segunda fila contiene:
+        /// Segunda fila:
         /// Buscar, Limpiar y Exportar PDF.
         ///
-        /// No se modifica la estructura cuando
-        /// el usuario cambia de sección.
+        /// Se utiliza un único ComboBox, que cambia
+        /// según la sección.
         /// </summary>
         private void CrearFiltros()
         {
             Panel tarjeta = PanelBlanco();
 
             tarjeta.Dock = DockStyle.Fill;
-            tarjeta.Margin = new Padding(5, 0, 5, 12);
-            tarjeta.Padding = new Padding(18, 12, 18, 12);
+
+            tarjeta.Margin =
+                new Padding(5, 0, 5, 12);
+
+            tarjeta.Padding =
+                new Padding(18, 12, 18, 12);
 
             TableLayoutPanel filas =
                 new TableLayoutPanel
@@ -474,8 +497,6 @@ namespace Aura_Beauty
                 Value = DateTime.Today
             };
 
-            // El selector cambia de contenido,
-            // pero siempre conserva su posición.
             cboFiltro = new ComboBox
             {
                 DropDownStyle =
@@ -528,11 +549,20 @@ namespace Aura_Beauty
             Button buscar =
                 Boton("Buscar", 125);
 
-            buscar.Click += (s, e) => Buscar();
+            buscar.Click += (s, e) =>
+            {
+                Buscar();
+            };
 
-            limpiar.Click += (s, e) => Limpiar();
+            limpiar.Click += (s, e) =>
+            {
+                Limpiar();
+            };
 
-            exportar.Click += (s, e) => ExportarPdf();
+            exportar.Click += (s, e) =>
+            {
+                ExportarPdf();
+            };
 
             acciones.Controls.Add(exportar);
             acciones.Controls.Add(limpiar);
@@ -546,8 +576,8 @@ namespace Aura_Beauty
         }
 
         /// <summary>
-        /// Crea una etiqueta con su control debajo.
-        /// Mantiene igual altura en los tres filtros.
+        /// Crea un filtro con su etiqueta superior.
+        /// Todos mantienen las mismas medidas.
         /// </summary>
         private TableLayoutPanel CampoFiltro(
             string titulo,
@@ -559,7 +589,9 @@ namespace Aura_Beauty
                     Dock = DockStyle.Fill,
                     ColumnCount = 1,
                     RowCount = 2,
-                    Margin = new Padding(5, 0, 12, 0)
+
+                    Margin =
+                        new Padding(5, 0, 12, 0)
                 };
 
             campo.RowStyles.Add(
@@ -573,6 +605,7 @@ namespace Aura_Beauty
             Label etiqueta = new Label
             {
                 Text = titulo,
+
                 Dock = DockStyle.Fill,
 
                 TextAlign =
@@ -587,21 +620,26 @@ namespace Aura_Beauty
             };
 
             control.Dock = DockStyle.Top;
-            control.Margin = new Padding(0, 4, 0, 0);
 
-            campo.Controls.Add(etiqueta, 0, 0);
-            campo.Controls.Add(control, 0, 1);
+            control.Margin =
+                new Padding(0, 4, 0, 0);
+
+            campo.Controls.Add(
+                etiqueta, 0, 0);
+
+            campo.Controls.Add(
+                control, 0, 1);
 
             return campo;
         }
 
-        // ==================================================
-        // TARJETAS
-        // ==================================================
+        // =====================================================
+        // TARJETAS ESTADÍSTICAS
+        // =====================================================
 
         /// <summary>
-        /// Crea las seis tarjetas estadísticas.
-        /// Se distribuyen en dos filas de tres columnas.
+        /// Distribuye seis tarjetas en dos filas
+        /// de tres columnas proporcionales.
         /// </summary>
         private void CrearTarjetas()
         {
@@ -609,8 +647,11 @@ namespace Aura_Beauty
                 new TableLayoutPanel
                 {
                     Dock = DockStyle.Fill,
+
                     ColumnCount = 3,
+
                     RowCount = 2,
+
                     Margin = new Padding(0, 4, 0, 9)
                 };
 
@@ -618,7 +659,8 @@ namespace Aura_Beauty
             {
                 tabla.ColumnStyles.Add(
                     new ColumnStyle(
-                        SizeType.Percent, 100F / 3F));
+                        SizeType.Percent,
+                        100F / 3F));
             }
 
             tabla.RowStyles.Add(
@@ -660,6 +702,7 @@ namespace Aura_Beauty
                 titulos[i] = new Label
                 {
                     Dock = DockStyle.Fill,
+
                     ForeColor = gris,
 
                     Font = new Font(
@@ -674,6 +717,7 @@ namespace Aura_Beauty
                 valores[i] = new Label
                 {
                     Dock = DockStyle.Fill,
+
                     ForeColor = texto,
 
                     Font = new Font(
@@ -696,19 +740,20 @@ namespace Aura_Beauty
                 panel.Controls.Add(interior);
 
                 tabla.Controls.Add(
-                    panel, i % 3, i / 3);
+                    panel,
+                    i % 3,
+                    i / 3);
             }
 
             contenido.Controls.Add(tabla, 0, 2);
         }
 
-        // ==================================================
+        // =====================================================
         // GRÁFICOS
-        // ==================================================
+        // =====================================================
 
         /// <summary>
-        /// Crea dos gráficos con distribución porcentual.
-        /// No utiliza coordenadas absolutas para ubicarlos.
+        /// Crea dos gráficos distribuidos en columnas.
         /// </summary>
         private void CrearGraficos()
         {
@@ -718,7 +763,9 @@ namespace Aura_Beauty
                     Dock = DockStyle.Fill,
                     ColumnCount = 2,
                     RowCount = 1,
-                    Margin = new Padding(0, 0, 0, 12)
+
+                    Margin =
+                        new Padding(0, 0, 0, 12)
                 };
 
             dos.ColumnStyles.Add(
@@ -780,8 +827,11 @@ namespace Aura_Beauty
 
                 grafico.Dock = DockStyle.Fill;
 
-                interior.Controls.Add(titulo, 0, 0);
-                interior.Controls.Add(grafico, 0, 1);
+                interior.Controls.Add(
+                    titulo, 0, 0);
+
+                interior.Controls.Add(
+                    grafico, 0, 1);
 
                 panel.Controls.Add(interior);
 
@@ -803,8 +853,8 @@ namespace Aura_Beauty
         }
 
         /// <summary>
-        /// Crea un gráfico de columnas con ancho moderado
-        /// y etiquetas de productos legibles.
+        /// Configura un gráfico de columnas.
+        /// El ancho máximo de cada barra es de 60 píxeles.
         /// </summary>
         private Chart CrearGrafico()
         {
@@ -845,8 +895,11 @@ namespace Aura_Beauty
             Series serie = new Series("Valores")
             {
                 ChartType = SeriesChartType.Column,
+
                 XValueType = ChartValueType.String,
+
                 YValueType = ChartValueType.Double,
+
                 Color = rosa
             };
 
@@ -858,21 +911,25 @@ namespace Aura_Beauty
             return grafico;
         }
 
-        // ==================================================
+        // =====================================================
         // TABLA DE DETALLE
-        // ==================================================
+        // =====================================================
 
         /// <summary>
-        /// Crea el DataGridView del reporte.
-        /// Es de solo lectura y permite desplazamiento.
+        /// Crea el DataGridView de solo lectura.
+        /// Las columnas cambian según el reporte.
         /// </summary>
         private void CrearTabla()
         {
             Panel tarjeta = PanelBlanco();
 
             tarjeta.Dock = DockStyle.Fill;
-            tarjeta.Margin = new Padding(5, 0, 5, 5);
-            tarjeta.Padding = new Padding(15, 12, 15, 10);
+
+            tarjeta.Margin =
+                new Padding(5, 0, 5, 5);
+
+            tarjeta.Padding =
+                new Padding(15, 12, 15, 10);
 
             TableLayoutPanel interior =
                 new TableLayoutPanel
@@ -897,7 +954,9 @@ namespace Aura_Beauty
             interior.Controls.Add(new Label
             {
                 Text = "Detalle del reporte",
+
                 Dock = DockStyle.Fill,
+
                 ForeColor = texto,
 
                 Font = new Font(
@@ -909,12 +968,17 @@ namespace Aura_Beauty
             dgvResultados = new DataGridView
             {
                 Dock = DockStyle.Fill,
+
                 BackgroundColor = Color.White,
+
                 BorderStyle = BorderStyle.None,
 
                 ReadOnly = true,
+
                 AllowUserToAddRows = false,
+
                 AllowUserToDeleteRows = false,
+
                 RowHeadersVisible = false,
 
                 SelectionMode =
@@ -936,7 +1000,8 @@ namespace Aura_Beauty
                 texto;
 
             dgvResultados.ColumnHeadersDefaultCellStyle.Font =
-                new Font("Segoe UI", 9F, FontStyle.Bold);
+                new Font(
+                    "Segoe UI", 9F, FontStyle.Bold);
 
             dgvResultados.DefaultCellStyle.SelectionBackColor =
                 rosaClaro;
@@ -950,6 +1015,7 @@ namespace Aura_Beauty
             lblEstado = new Label
             {
                 Dock = DockStyle.Fill,
+
                 ForeColor = gris,
 
                 Font = new Font("Segoe UI", 8.5F),
@@ -960,37 +1026,44 @@ namespace Aura_Beauty
                 AutoEllipsis = true
             };
 
-            interior.Controls.Add(dgvResultados, 0, 1);
-            interior.Controls.Add(lblEstado, 0, 2);
+            interior.Controls.Add(
+                dgvResultados, 0, 1);
+
+            interior.Controls.Add(
+                lblEstado, 0, 2);
 
             tarjeta.Controls.Add(interior);
 
             contenido.Controls.Add(tarjeta, 0, 4);
         }
 
-        // ==================================================
-        // SELECCIÓN DE SECCIÓN
-        // ==================================================
+        // =====================================================
+        // NAVEGACIÓN
+        // =====================================================
 
         /// <summary>
-        /// Cambia los filtros y los títulos, sin modificar
-        /// el tamaño de los controles ni los datos SQL.
+        /// Selecciona una sección, cambia el nombre
+        /// del filtro y carga sus opciones.
+        ///
+        /// No cambia las medidas del formulario.
         /// </summary>
         private void PrepararSeccion(string nueva)
         {
             seccionActual = nueva;
 
-            foreach (var par in botones)
+            foreach (KeyValuePair<string, Button>
+                opcion in botones)
             {
-                bool activo = par.Key == nueva;
+                bool activo =
+                    opcion.Key == nueva;
 
-                par.Value.BackColor =
+                opcion.Value.BackColor =
                     activo ? rosa : beige;
 
-                par.Value.ForeColor =
+                opcion.Value.ForeColor =
                     activo ? Color.White : texto;
 
-                par.Value.Font = new Font(
+                opcion.Value.Font = new Font(
                     "Segoe UI",
                     10F,
 
@@ -1003,18 +1076,28 @@ namespace Aura_Beauty
                 "Reportes de " +
                 nueva.ToLowerInvariant();
 
-            lblNombreFiltro.Text =
-                nueva == "Ventas" ||
-                nueva == "Vendedores"
-                    ? "VENDEDOR"
-                    : nueva == "Productos" ||
-                      nueva == "Stock"
-                        ? "PRODUCTO"
-                        : nueva == "Categorías"
-                            ? "CATEGORÍA"
-                            : nueva == "Solicitudes"
-                                ? "ESTADO"
-                                : "CLIENTE";
+            // Cada sección muestra su filtro específico.
+            if (nueva == "Ventas" ||
+                nueva == "Vendedores")
+            {
+                lblNombreFiltro.Text = "VENDEDOR";
+            }
+            else if (nueva == "Productos")
+            {
+                lblNombreFiltro.Text = "PRODUCTO";
+            }
+            else if (nueva == "Categorías")
+            {
+                lblNombreFiltro.Text = "CATEGORÍA";
+            }
+            else if (nueva == "Solicitudes")
+            {
+                lblNombreFiltro.Text = "ESTADO";
+            }
+            else
+            {
+                lblNombreFiltro.Text = "CLIENTE";
+            }
 
             ultimoReporte = null;
 
@@ -1023,7 +1106,10 @@ namespace Aura_Beauty
             try
             {
                 List<OpcionReporte> opciones =
-                    negocio.ObtenerOpciones(nueva);
+                    negocio.ObtenerOpciones(
+                        nueva,
+                        dtpDesde.Value.Date,
+                        dtpHasta.Value.Date);
 
                 cboFiltro.DataSource = null;
 
@@ -1033,7 +1119,9 @@ namespace Aura_Beauty
                 cboFiltro.DataSource = opciones;
 
                 if (cboFiltro.Items.Count > 0)
+                {
                     cboFiltro.SelectedIndex = 0;
+                }
 
                 lblEstado.Text =
                     "Seleccioná los filtros y presioná Buscar.";
@@ -1048,13 +1136,30 @@ namespace Aura_Beauty
             }
         }
 
-        // ==================================================
-        // LIMPIAR
-        // ==================================================
+        /// <summary>
+        /// Recarga el selector cuando cambian las fechas,
+        /// para no mostrar productos o categorías que
+        /// no tuvieron actividad en el nuevo período.
+        /// </summary>
+        private void FechasCambiadas(
+            object sender,
+            EventArgs e)
+        {
+            if (dtpDesde.Value.Date >
+                dtpHasta.Value.Date)
+            {
+                return;
+            }
+
+            PrepararSeccion(seccionActual);
+        }
+
+        // =====================================================
+        // LIMPIAR FILTROS
+        // =====================================================
 
         /// <summary>
-        /// Restablece fechas y selector actual.
-        /// No modifica registros de la base de datos.
+        /// Restablece fechas y selección.
         /// </summary>
         private void Limpiar()
         {
@@ -1066,7 +1171,9 @@ namespace Aura_Beauty
             dtpHasta.Value = DateTime.Today;
 
             if (cboFiltro.Items.Count > 0)
+            {
                 cboFiltro.SelectedIndex = 0;
+            }
 
             ultimoReporte = null;
 
@@ -1077,7 +1184,8 @@ namespace Aura_Beauty
         }
 
         /// <summary>
-        /// Limpia las tarjetas, gráficos y tabla.
+        /// Limpia las tarjetas, gráficos y tabla,
+        /// sin modificar la base de datos.
         /// </summary>
         private void LimpiarResultadosVisuales()
         {
@@ -1094,19 +1202,20 @@ namespace Aura_Beauty
             lblTituloGrafico2.Text = "";
 
             dgvResultados.DataSource = null;
+
             lblEstado.Text = "";
         }
 
-        // ==================================================
+        // =====================================================
         // BUSCAR
-        // ==================================================
+        // =====================================================
 
         /// <summary>
-        /// Obtiene resultados desde un único método
-        /// de Negocio y actualiza los controles.
+        /// Solicita el reporte a CN_Reporte y presenta
+        /// sus resultados.
         ///
-        /// Si una consulta falla, informa el error
-        /// sin cerrar el formulario.
+        /// Si ocurre un error, el formulario permanece
+        /// abierto y muestra el mensaje correspondiente.
         /// </summary>
         private void Buscar()
         {
@@ -1123,22 +1232,24 @@ namespace Aura_Beauty
             OpcionReporte opcion =
                 cboFiltro.SelectedItem as OpcionReporte;
 
-            int id = opcion == null ? 0 : opcion.Id;
+            int id = opcion == null
+                ? 0
+                : opcion.Id;
 
             try
             {
                 this.UseWaitCursor = true;
 
-                VistaReporte nuevo =
+                VistaReporte reporte =
                     negocio.ConstruirReporte(
                         seccionActual,
                         dtpDesde.Value.Date,
                         dtpHasta.Value.Date,
                         id);
 
-                PintarReporte(nuevo);
+                PintarReporte(reporte);
 
-                ultimoReporte = nuevo;
+                ultimoReporte = reporte;
             }
             catch (Exception ex)
             {
@@ -1146,11 +1257,13 @@ namespace Aura_Beauty
 
                 lblEstado.Text =
                     "Error en " +
-                    seccionActual + ": " + ex.Message;
+                    seccionActual + ": " +
+                    ex.Message;
 
                 MessageBox.Show(
                     "No se pudo consultar el reporte de " +
-                    seccionActual + ":\n" + ex.Message,
+                    seccionActual + ":\n" +
+                    ex.Message,
 
                     "Aura Beauty",
 
@@ -1164,25 +1277,25 @@ namespace Aura_Beauty
             }
         }
 
-        // ==================================================
+        // =====================================================
         // MOSTRAR RESULTADOS
-        // ==================================================
+        // =====================================================
 
         /// <summary>
-        /// Asigna a los controles los resultados
-        /// que recibe de Negocio.
+        /// Actualiza seis indicadores, dos gráficos
+        /// y la tabla de detalle.
         ///
-        /// No calcula porcentajes ni acumula ventas.
+        /// Los datos ya fueron calculados en Negocio.
         /// </summary>
-        private void PintarReporte(VistaReporte vista)
+        private void PintarReporte(VistaReporte reporte)
         {
             for (int i = 0; i < 6; i++)
             {
                 titulos[i].Text =
-                    vista.TitulosIndicadores[i] ?? "";
+                    reporte.TitulosIndicadores[i] ?? "";
 
                 valores[i].Text =
-                    vista.ValoresIndicadores[i] ?? "";
+                    reporte.ValoresIndicadores[i] ?? "";
 
                 float tamano =
                     valores[i].Text.Length > 21
@@ -1191,52 +1304,50 @@ namespace Aura_Beauty
                             ? 13F
                             : 16F;
 
-                valores[i].Font =
-                    new Font(
-                        "Segoe UI",
-                        tamano,
-                        FontStyle.Bold);
+                valores[i].Font = new Font(
+                    "Segoe UI",
+                    tamano,
+                    FontStyle.Bold);
             }
 
             lblTituloGrafico1.Text =
-                vista.TituloGrafico1;
+                reporte.TituloGrafico1;
 
             lblTituloGrafico2.Text =
-                vista.TituloGrafico2;
+                reporte.TituloGrafico2;
 
             PintarGrafico(
                 grafico1,
-                vista.PuntosGrafico1,
-                vista.Grafico1EsCantidad);
+                reporte.PuntosGrafico1,
+                reporte.Grafico1EsCantidad);
 
             PintarGrafico(
                 grafico2,
-                vista.PuntosGrafico2,
-                vista.Grafico2EsCantidad);
+                reporte.PuntosGrafico2,
+                reporte.Grafico2EsCantidad);
 
-            dgvResultados.DataSource = vista.Detalle;
+            dgvResultados.DataSource =
+                reporte.Detalle;
 
             lblEstado.Text =
                 "Filas: " +
-                vista.Detalle.Rows.Count +
+                reporte.Detalle.Rows.Count +
                 " | " +
-                (vista.Aviso ?? "");
+                (reporte.Aviso ?? "");
 
             lblEstado.Refresh();
         }
 
-        // ==================================================
+        // =====================================================
         // ESCALA DE LOS GRÁFICOS
-        // ==================================================
+        // =====================================================
 
         /// <summary>
-        /// Cuando el gráfico representa cantidades
-        /// utiliza únicamente marcas enteras.
+        /// Presenta columnas con escala monetaria
+        /// o escala entera según corresponda.
         ///
-        /// Cuando representa dinero, el eje puede
-        /// ajustarse automáticamente al importe.
-        ///
-        /// El método modifica solo la presentación.
+        /// Las cantidades siempre tienen marcas
+        /// enteras en el eje vertical.
         /// </summary>
         private void PintarGrafico(
             Chart grafico,
@@ -1251,9 +1362,10 @@ namespace Aura_Beauty
 
             foreach (PuntoReporte punto in puntos)
             {
-                decimal valor = punto.Valor < 0m
-                    ? 0m
-                    : punto.Valor;
+                decimal valor =
+                    punto.Valor < 0m
+                        ? 0m
+                        : punto.Valor;
 
                 string corto =
                     punto.Etiqueta ?? "Sin nombre";
@@ -1283,7 +1395,9 @@ namespace Aura_Beauty
                 grafico.ChartAreas[0].AxisY;
 
             eje.Minimum = 0;
+
             eje.LabelStyle.Format = "N0";
+
             eje.IsStartedFromZero = true;
 
             if (entero)
@@ -1312,28 +1426,28 @@ namespace Aura_Beauty
                         paso));
 
                 serie.IsValueShownAsLabel = true;
+
                 serie.LabelFormat = "N0";
             }
             else
             {
                 eje.Maximum = double.NaN;
+
                 eje.Interval = 0;
 
                 serie.IsValueShownAsLabel = false;
             }
         }
 
-        // ==================================================
+        // =====================================================
         // EXPORTAR PDF
-        // ==================================================
+        // =====================================================
 
         /// <summary>
-        /// Exporta indicadores y filas del reporte.
+        /// Exporta los indicadores y las filas
+        /// del último reporte mediante PdfSharp.
         ///
-        /// Utiliza PdfSharp, ya referenciado
-        /// por el proyecto.
-        ///
-        /// No modifica la base de datos.
+        /// No realiza consultas ni modifica SQL Server.
         /// </summary>
         private void ExportarPdf()
         {
@@ -1377,7 +1491,9 @@ namespace Aura_Beauty
                         seccionActual.ToUpperInvariant(),
 
                         fuenteTitulo,
+
                         XBrushes.Black,
+
                         new XPoint(38, y));
 
                     y += 30;
@@ -1389,21 +1505,26 @@ namespace Aura_Beauty
                         dtpHasta.Value.ToString("dd/MM/yyyy"),
 
                         fuenteNormal,
+
                         XBrushes.Black,
+
                         new XPoint(38, y));
 
                     y += 27;
 
                     for (int i = 0; i < 6; i++)
                     {
+                        string linea =
+                            titulos[i].Text + ": " +
+                            valores[i].Text;
+
                         grafica.DrawString(
-                            Recortar(
-                                titulos[i].Text +
-                                ": " + valores[i].Text,
-                                95),
+                            Recortar(linea, 95),
 
                             fuenteNormal,
+
                             XBrushes.Black,
+
                             new XPoint(38, y));
 
                         y += 22;
@@ -1413,8 +1534,11 @@ namespace Aura_Beauty
 
                     grafica.DrawString(
                         "DETALLE",
+
                         fuenteTitulo,
+
                         XBrushes.Black,
+
                         new XPoint(38, y));
 
                     y += 24;
@@ -1424,26 +1548,32 @@ namespace Aura_Beauty
                     {
                         if (y >= 780)
                         {
-                            pagina = documento.AddPage();
+                            pagina =
+                                documento.AddPage();
 
                             grafica.Dispose();
 
                             grafica =
-                                XGraphics.FromPdfPage(pagina);
+                                XGraphics.FromPdfPage(
+                                    pagina);
 
                             y = 45;
                         }
 
                         string linea = string.Join(
                             " | ",
+
                             fila.ItemArray.Select(
-                                celda => Convert.ToString(celda)));
+                                celda =>
+                                    Convert.ToString(celda)));
 
                         grafica.DrawString(
                             Recortar(linea, 102),
 
                             fuenteNormal,
+
                             XBrushes.Black,
+
                             new XPoint(38, y));
 
                         y += 18;
@@ -1484,8 +1614,8 @@ namespace Aura_Beauty
         }
 
         /// <summary>
-        /// Acorta una cadena de texto para impedir
-        /// que exceda el ancho de una página PDF.
+        /// Recorta textos demasiado largos
+        /// para la exportación.
         /// </summary>
         private static string Recortar(
             string texto,
@@ -1497,9 +1627,9 @@ namespace Aura_Beauty
                     0, maximo - 3) + "...";
         }
 
-        // ==================================================
+        // =====================================================
         // COMPONENTES VISUALES
-        // ==================================================
+        // =====================================================
 
         /// <summary>
         /// Crea un panel blanco con esquinas redondeadas.
@@ -1517,8 +1647,7 @@ namespace Aura_Beauty
         }
 
         /// <summary>
-        /// Crea un botón rosa nude con efecto visual
-        /// cuando el cursor pasa sobre él.
+        /// Crea un botón rosa nude con el ancho indicado.
         /// </summary>
         private Button Boton(
             string titulo,
@@ -1527,7 +1656,9 @@ namespace Aura_Beauty
             Button boton = new Button
             {
                 Text = titulo,
+
                 Width = ancho,
+
                 Height = 37,
 
                 Margin =
@@ -1536,10 +1667,13 @@ namespace Aura_Beauty
                 FlatStyle = FlatStyle.Flat,
 
                 BackColor = rosa,
+
                 ForeColor = Color.White,
 
                 Font = new Font(
-                    "Segoe UI", 9F, FontStyle.Bold),
+                    "Segoe UI",
+                    9F,
+                    FontStyle.Bold),
 
                 Cursor = Cursors.Hand
             };
@@ -1561,13 +1695,13 @@ namespace Aura_Beauty
             return boton;
         }
 
-        // ==================================================
+        // =====================================================
         // BORDES REDONDEADOS
-        // ==================================================
+        // =====================================================
 
         /// <summary>
-        /// Recalcula el redondeo al cambiar
-        /// el tamaño de un control.
+        /// Vuelve a calcular la región redondeada
+        /// cuando el control cambia de tamaño.
         /// </summary>
         private void Redondear(
             Control control,
@@ -1582,8 +1716,8 @@ namespace Aura_Beauty
         }
 
         /// <summary>
-        /// Construye una región con cuatro esquinas
-        /// redondeadas mediante GraphicsPath.
+        /// Dibuja las esquinas redondeadas usando
+        /// GraphicsPath.
         /// </summary>
         private static void AplicarRedondeo(
             Control control,
@@ -1597,6 +1731,7 @@ namespace Aura_Beauty
 
             int diametro = Math.Min(
                 radio * 2,
+
                 Math.Min(
                     control.Width,
                     control.Height));
@@ -1605,27 +1740,36 @@ namespace Aura_Beauty
                 new GraphicsPath())
             {
                 ruta.AddArc(
-                    0, 0,
-                    diametro, diametro,
-                    180, 90);
+                    0,
+                    0,
+                    diametro,
+                    diametro,
+                    180,
+                    90);
 
                 ruta.AddArc(
                     control.Width - diametro,
                     0,
-                    diametro, diametro,
-                    270, 90);
+                    diametro,
+                    diametro,
+                    270,
+                    90);
 
                 ruta.AddArc(
                     control.Width - diametro,
                     control.Height - diametro,
-                    diametro, diametro,
-                    0, 90);
+                    diametro,
+                    diametro,
+                    0,
+                    90);
 
                 ruta.AddArc(
                     0,
                     control.Height - diametro,
-                    diametro, diametro,
-                    90, 90);
+                    diametro,
+                    diametro,
+                    90,
+                    90);
 
                 ruta.CloseFigure();
 
@@ -1634,7 +1778,9 @@ namespace Aura_Beauty
                 control.Region = new Region(ruta);
 
                 if (anterior != null)
+                {
                     anterior.Dispose();
+                }
             }
         }
     }
