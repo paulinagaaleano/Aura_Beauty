@@ -60,6 +60,7 @@
     <Compile Include="CD_Stock.cs" />
     <Compile Include="CD_Usuarios.cs" />
     <Compile Include="CD_Venta.cs" />
+    <Compile Include="CD_VentaReservada.cs" />
     <Compile Include="Conexion.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="CD_Reporte.resx">

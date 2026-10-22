@@ -48,6 +48,39 @@ namespace Aura_Beauty
             new CN_Venta();
 
 
+        // =====================================================
+        // RESERVAS Y CONFIRMACIÓN SEGURA
+        // =====================================================
+
+        /// <summary>
+        /// Permite crear, actualizar y cancelar reservas
+        /// mediante la capa Negocio.
+        /// </summary>
+        private readonly CN_ReservaProducto cnReserva =
+            new CN_ReservaProducto();
+
+        /// <summary>
+        /// Confirma la venta utilizando las reservas,
+        /// sin volver a descontar stock desde C#.
+        /// </summary>
+        private readonly CN_VentaReservada cnVentaReservada =
+            new CN_VentaReservada();
+
+        /// <summary>
+        /// Identificador único del carrito actual.
+        ///
+        /// Se genera al comenzar una venta nueva
+        /// y no cambia mientras esa venta esté abierta.
+        /// </summary>
+        private Guid idOperacionVenta = Guid.Empty;
+
+        /// <summary>
+        /// Evita cancelar reservas que ya fueron
+        /// confirmadas como venta definitiva.
+        /// </summary>
+        private bool ventaYaRegistrada = false;
+
+
         // =========================================================
         // USUARIO ACTUAL
         // =========================================================
@@ -170,6 +203,12 @@ namespace Aura_Beauty
             CargarProductos();
 
             PrepararNuevaVenta();
+
+
+            // Al cerrar el formulario, liberar las reservas
+            // que todavía no se hayan convertido en venta.
+            this.FormClosing += frmVentas_FormClosing;
+
         }
 
 
@@ -1436,137 +1475,102 @@ namespace Aura_Beauty
         // AGREGAR PRODUCTO AL CARRITO
         // =========================================================
 
+
+        /// <summary>
+        /// Agrega unidades de un producto al carrito.
+        ///
+        /// Primero realiza la reserva en SQL Server.
+        /// Solamente actualiza el carrito si la reserva
+        /// fue aceptada.
+        ///
+        /// No descuenta stock físico.
+        /// </summary>
         private void btnAgregarCarrito_Click(
             object sender,
-            EventArgs e
-        )
+            EventArgs e)
         {
             try
             {
-                if (
-                    productoSeleccionado == null
-                )
+                if (productoSeleccionado == null)
                 {
                     throw new Exception(
-                        "Seleccioná primero un producto."
-                    );
+                        "Seleccioná primero un producto.");
                 }
 
+                int cantidad;
 
-                if (
-                    !int.TryParse(
-                        txtCantidad.Text,
-                        out int cantidad
-                    )
-                )
+                if (!int.TryParse(
+                    txtCantidad.Text,
+                    out cantidad) || cantidad <= 0)
                 {
                     throw new Exception(
-                        "Ingresá una cantidad válida."
-                    );
+                        "Ingresá una cantidad válida.");
                 }
 
+                VentaDetalle existente =
+                    carrito.FirstOrDefault(d =>
+                        d.IdProducto ==
+                        productoSeleccionado.IdProducto);
 
-                if (cantidad <= 0)
+                int cantidadActual =
+                    existente == null
+                        ? 0
+                        : existente.Cantidad;
+
+                int cantidadNueva = checked(
+                    cantidadActual + cantidad);
+
+                // IMPORTANTE:
+                // La base verifica stock menos las
+                // reservas vigentes de otros vendedores.
+                // No confiamos en el stock de la grilla.
+                ResultadoReservaProducto resultado =
+                    cnReserva.Reservar(
+                        idOperacionVenta,
+                        productoSeleccionado.IdProducto,
+                        usuarioActual.IdUsuario,
+                        cantidadNueva);
+
+                // Llegamos aquí solamente si SQL Server
+                // aceptó la cantidad total solicitada.
+                if (existente != null)
                 {
-                    throw new Exception(
-                        "La cantidad debe ser mayor que cero."
-                    );
-                }
-
-
-                VentaDetalle detalleExistente =
-                    carrito.FirstOrDefault(
-                        d =>
-                            d.IdProducto ==
-                            productoSeleccionado.IdProducto
-                    );
-
-
-                int cantidadYaAgregada =
-                    detalleExistente != null
-                        ? detalleExistente.Cantidad
-                        : 0;
-
-
-                int cantidadTotal =
-                    cantidadYaAgregada
-                    +
-                    cantidad;
-
-
-                if (
-                    cantidadTotal >
-                    productoSeleccionado.Stock
-                )
-                {
-                    throw new Exception(
-                        "No hay stock suficiente.\n\n"
-                        + "Stock disponible: "
-                        + productoSeleccionado.Stock
-                    );
-                }
-
-
-                // Si el producto ya existe en el carrito,
-                // no generamos una segunda línea.
-                //
-                // Aumentamos la cantidad de la línea existente.
-                if (
-                    detalleExistente != null
-                )
-                {
-                    detalleExistente.Cantidad =
-                        cantidadTotal;
-
-
-                    RecalcularDetalle(
-                        detalleExistente
-                    );
+                    existente.Cantidad = cantidadNueva;
+                    RecalcularDetalle(existente);
                 }
                 else
                 {
-                    VentaDetalle nuevoDetalle =
-                        new VentaDetalle
-                        {
-                            IdProducto =
-                                productoSeleccionado.IdProducto,
+                    carrito.Add(new VentaDetalle
+                    {
+                        IdProducto =
+                            productoSeleccionado.IdProducto,
 
-                            Cantidad =
-                                cantidad,
+                        Cantidad = cantidadNueva,
 
-                            PrecioUnitario =
-                                productoSeleccionado.Precio,
+                        PrecioUnitario =
+                            productoSeleccionado.Precio,
 
-                            Subtotal =
-                                cantidad
-                                *
-                                productoSeleccionado.Precio,
+                        Subtotal =
+                            cantidadNueva *
+                            productoSeleccionado.Precio,
 
-                            oProducto =
-                                productoSeleccionado
-                        };
-
-
-                    carrito.Add(
-                        nuevoDetalle
-                    );
+                        oProducto = productoSeleccionado
+                    });
                 }
 
-
                 ActualizarCarrito();
-
                 LimpiarSeleccionProducto();
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
                     ex.Message,
-                    "Aura Beauty",
+                    "No se pudo agregar el producto",
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
+                    MessageBoxIcon.Warning);
             }
         }
+
 
 
         // =========================================================
@@ -1636,140 +1640,105 @@ namespace Aura_Beauty
         // AUMENTAR UNA UNIDAD
         // =========================================================
 
+
         /// <summary>
-        /// Incrementa en una unidad la cantidad del producto
-        /// seleccionado en el carrito.
+        /// Aumenta una unidad en el producto elegido.
         ///
-        /// Antes de hacerlo comprueba que exista stock disponible.
+        /// SQL Server debe aceptar la nueva cantidad
+        /// antes de modificar el carrito local.
         /// </summary>
         private void btnAumentarCantidad_Click(
             object sender,
-            EventArgs e
-        )
+            EventArgs e)
         {
             try
             {
                 VentaDetalle detalle =
                     ObtenerDetalleSeleccionadoCarrito();
 
+                int nuevaCantidad = checked(
+                    detalle.Cantidad + 1);
 
-                Producto producto =
-                    listaProductos.FirstOrDefault(
-                        p =>
-                            p.IdProducto ==
-                            detalle.IdProducto
-                    );
+                cnReserva.Reservar(
+                    idOperacionVenta,
+                    detalle.IdProducto,
+                    usuarioActual.IdUsuario,
+                    nuevaCantidad);
 
+                // La reserva fue aceptada.
+                detalle.Cantidad = nuevaCantidad;
 
-                if (producto == null)
-                {
-                    throw new Exception(
-                        "No fue posible encontrar el producto."
-                    );
-                }
-
-
-                // No permitimos que la cantidad solicitada
-                // supere el stock disponible.
-                if (
-                    detalle.Cantidad + 1 >
-                    producto.Stock
-                )
-                {
-                    throw new Exception(
-                        "No hay más stock disponible "
-                        + "para este producto.\n\n"
-                        + "Stock disponible: "
-                        + producto.Stock
-                    );
-                }
-
-
-                // ++ significa incrementar en una unidad.
-                detalle.Cantidad++;
-
-
-                RecalcularDetalle(
-                    detalle
-                );
-
-
+                RecalcularDetalle(detalle);
                 ActualizarCarrito();
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
                     ex.Message,
-                    "Aura Beauty",
+                    "No se pudo aumentar la cantidad",
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
+                    MessageBoxIcon.Warning);
             }
         }
+
 
 
         // =========================================================
         // DISMINUIR UNA UNIDAD
         // =========================================================
 
+
         /// <summary>
-        /// Disminuye en una unidad la cantidad del producto
-        /// seleccionado.
+        /// Reduce en una unidad la reserva y el carrito.
         ///
-        /// Nunca baja de una unidad.
-        /// Para eliminar completamente el producto existe
-        /// el botón "Quitar producto".
+        /// La cantidad mínima de una línea es una unidad.
+        /// Para eliminarla se utiliza Quitar producto.
         /// </summary>
         private void btnDisminuirCantidad_Click(
             object sender,
-            EventArgs e
-        )
+            EventArgs e)
         {
             try
             {
                 VentaDetalle detalle =
                     ObtenerDetalleSeleccionadoCarrito();
 
-
-                if (
-                    detalle.Cantidad <= 1
-                )
+                if (detalle.Cantidad <= 1)
                 {
                     MessageBox.Show(
-                        "La cantidad mínima es 1.\n\n"
-                        + "Si querés eliminar completamente "
-                        + "el producto, utilizá "
-                        + "\"Quitar producto\".",
+                        "Para quitar la última unidad, " +
+                        "utilizá el botón Quitar producto.",
                         "Aura Beauty",
                         MessageBoxButtons.OK,
-                        MessageBoxIcon.Information
-                    );
+                        MessageBoxIcon.Information);
 
                     return;
                 }
 
+                int nuevaCantidad = detalle.Cantidad - 1;
 
-                // -- significa disminuir en una unidad.
-                detalle.Cantidad--;
+                // Actualizamos la reserva primero.
+                cnReserva.Reservar(
+                    idOperacionVenta,
+                    detalle.IdProducto,
+                    usuarioActual.IdUsuario,
+                    nuevaCantidad);
 
+                detalle.Cantidad = nuevaCantidad;
 
-                RecalcularDetalle(
-                    detalle
-                );
-
-
+                RecalcularDetalle(detalle);
                 ActualizarCarrito();
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
                     ex.Message,
-                    "Aura Beauty",
+                    "No se pudo disminuir la cantidad",
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
+                    MessageBoxIcon.Warning);
             }
         }
+
 
 
         // =========================================================
@@ -1850,301 +1819,266 @@ namespace Aura_Beauty
         // QUITAR COMPLETAMENTE UN PRODUCTO
         // =========================================================
 
+
+        /// <summary>
+        /// Quita un producto del carrito.
+        ///
+        /// Cancela su reserva en SQL Server y después
+        /// lo elimina de la lista en memoria.
+        ///
+        /// No suma unidades al stock físico porque
+        /// todavía no fueron descontadas.
+        /// </summary>
         private void btnQuitarCarrito_Click(
             object sender,
-            EventArgs e
-        )
+            EventArgs e)
         {
             try
             {
                 VentaDetalle detalle =
                     ObtenerDetalleSeleccionadoCarrito();
 
-
-                string nombreProducto =
-                    detalle.oProducto != null
-                        ? detalle.oProducto.Nombre
-                        : "el producto";
-
+                string nombre = detalle.oProducto != null
+                    ? detalle.oProducto.Nombre
+                    : "este producto";
 
                 DialogResult respuesta =
                     MessageBox.Show(
-                        "¿Querés quitar completamente "
-                        + nombreProducto
-                        + " del carrito?",
+                        "¿Querés quitar " + nombre +
+                        " del carrito y liberar sus unidades?",
                         "Aura Beauty",
                         MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Question
-                    );
+                        MessageBoxIcon.Question);
 
-
-                if (
-                    respuesta !=
-                    DialogResult.Yes
-                )
-                {
+                if (respuesta != DialogResult.Yes)
                     return;
-                }
 
+                // Si SQL no confirma la cancelación,
+                // el producto permanece en el carrito.
+                cnReserva.CancelarProducto(
+                    idOperacionVenta,
+                    usuarioActual.IdUsuario,
+                    detalle.IdProducto);
 
-                carrito.Remove(
-                    detalle
-                );
-
-
+                carrito.Remove(detalle);
                 ActualizarCarrito();
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
                     ex.Message,
-                    "Aura Beauty",
+                    "No se pudo quitar el producto",
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
+                    MessageBoxIcon.Warning);
             }
         }
+
 
 
         // =========================================================
         // CONFIRMAR VENTA
         // =========================================================
 
+
+        /// <summary>
+        /// Confirma una venta respaldada por reservas.
+        ///
+        /// La operación definitiva se realiza en SQL:
+        /// - Verificación de reservas vigentes.
+        /// - Registro de cabecera y detalles.
+        /// - Descuento de stock.
+        /// - Confirmación de reservas.
+        ///
+        /// No llama al método anterior Registrar().
+        /// </summary>
         private void btnConfirmarVenta_Click(
-    object sender,
-    EventArgs e
-)
+            object sender,
+            EventArgs e)
         {
+            bool confirmacionRegistrada = false;
+
             try
             {
-                // =====================================================
+                // =========================================
                 // 1. CONSTRUIR LA VENTA
-                // =====================================================
+                // =========================================
 
-                VentaCabecera venta =
-                    ConstruirVenta();
+                VentaCabecera venta = ConstruirVenta();
 
+                Cliente clienteComprobante = null;
 
-                // =====================================================
-                // 2. IDENTIFICAR CLIENTE PARA EL COMPROBANTE
-                // =====================================================
-
-                // Si Consumidor Final está marcado,
-                // clienteComprobante permanecerá en null.
-                //
-                // El generador de PDF interpreta null
-                // como "Consumidor Final".
-                Cliente clienteComprobante =
-                    null;
-
-
-                if (
-                    !chkConsumidorFinal.Checked
-                )
+                if (!chkConsumidorFinal.Checked)
                 {
                     clienteComprobante =
-                        cboCliente.SelectedItem
-                        as Cliente;
+                        cboCliente.SelectedItem as Cliente;
                 }
 
+                // =========================================
+                // 2. PEDIR CONFIRMACIÓN
+                // =========================================
 
-                // =====================================================
-                // 3. PEDIR CONFIRMACIÓN
-                // =====================================================
+                DialogResult respuesta = MessageBox.Show(
+                    "¿Confirmar la venta por " +
+                    lblTotal.Text + "?",
+                    "Aura Beauty",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
 
-                DialogResult confirmacion =
-                    MessageBox.Show(
-                        "¿Confirmar la venta por "
-                        + lblTotal.Text
-                        + "?",
-                        "Aura Beauty",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Question
-                    );
-
-
-                if (
-                    confirmacion !=
-                    DialogResult.Yes
-                )
-                {
+                if (respuesta != DialogResult.Yes)
                     return;
-                }
 
+                // Evitar dos clics simultáneos en el botón.
+                btnConfirmarVenta.Enabled = false;
 
-                // =====================================================
-                // 4. REGISTRAR LA VENTA
-                // =====================================================
+                // =========================================
+                // 3. CONFIRMAR CON RESERVAS
+                // =========================================
 
-                // CN_Venta valida la información.
-                //
-                // CD_Venta realiza la transacción:
-                // - guarda VentaCabecera;
-                // - guarda VentaDetalle;
-                // - descuenta stock.
-                //
-                // Registrar devuelve el ID generado
-                // por SQL Server.
-                int idVenta =
-                    cnVenta.Registrar(
-                        venta
-                    );
+                ResultadoVentaReservada resultado =
+                    cnVentaReservada.Confirmar(
+                        idOperacionVenta,
+                        venta);
 
+                /*
+                El procedimiento SQL ya realizó toda
+                la operación dentro de una transacción.
 
-                // =====================================================
-                // 5. COMPLETAR DATOS DEL OBJETO PARA EL PDF
-                // =====================================================
+                No debemos descontar stock otra vez.
+                */
+                confirmacionRegistrada = true;
+                ventaYaRegistrada = true;
 
-                // El ID fue generado por la base de datos.
-                // Ahora lo asignamos al objeto que utilizaremos
-                // para generar el comprobante.
                 venta.IdVentaCabecera =
-                    idVenta;
+                    resultado.IdVentaCabecera;
 
+                // La fecha se utiliza para el PDF.
+                venta.FechaVenta = DateTime.Now;
 
-                // CD_Venta utiliza GETDATE() en SQL Server.
-                //
-                // Para mostrar la fecha en el PDF asignamos
-                // la fecha actual al objeto en memoria.
-                venta.FechaVenta =
-                    DateTime.Now;
+                // =========================================
+                // 4. GENERAR COMPROBANTE
+                // =========================================
 
-
-                // =====================================================
-                // 6. GENERAR PDF
-                // =====================================================
-
-                string rutaPdf =
-                    null;
-
+                string rutaPdf = null;
 
                 try
                 {
-                    rutaPdf =
-                        GeneradorComprobantePdf.Generar(
-                            venta,
-                            usuarioActual,
-                            clienteComprobante
-                        );
+                    rutaPdf = GeneradorComprobantePdf.Generar(
+                        venta,
+                        usuarioActual,
+                        clienteComprobante);
                 }
-                catch (Exception exPdf)
+                catch (Exception errorPdf)
                 {
-                    // MUY IMPORTANTE:
-                    //
-                    // Si falla el PDF, la venta NO debe considerarse
-                    // fallida porque ya fue registrada correctamente
-                    // en la base de datos.
-                    //
-                    // Por eso el error del PDF se controla
-                    // independientemente.
+                    /*
+                    La venta ya está confirmada.
+
+                    Un error en el PDF no debe provocar
+                    que se registre otra venta.
+                    */
                     MessageBox.Show(
-                        "La venta fue registrada correctamente, "
-                        + "pero no fue posible generar el comprobante PDF."
-                        + "\n\n"
-                        + exPdf.Message,
+                        "La venta se registró correctamente, " +
+                        "pero no se pudo generar el PDF.\n\n" +
+                        errorPdf.Message,
                         "Aura Beauty",
                         MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning
-                    );
+                        MessageBoxIcon.Warning);
                 }
 
+                // =========================================
+                // 5. INFORMAR RESULTADO
+                // =========================================
 
-                // =====================================================
-                // 7. INFORMAR RESULTADO
-                // =====================================================
+                string mensaje = resultado.YaRegistrada
+                    ? "Esta operación ya estaba registrada."
+                    : "Venta registrada correctamente.";
 
-                string mensaje =
-                    "Venta registrada correctamente."
-                    + "\n\n"
-                    + "Venta N.º "
-                    + idVenta
-                    + "\n"
-                    + "Comprobante: "
-                    + venta.NroFactura;
-
-
-                if (
-                    !string.IsNullOrWhiteSpace(
-                        rutaPdf
-                    )
-                )
-                {
-                    mensaje +=
-                        "\n\n"
-                        + "El comprobante PDF fue generado correctamente.";
-                }
-
+                mensaje +=
+                    "\n\nVenta N.º " +
+                    resultado.IdVentaCabecera +
+                    "\nComprobante: " +
+                    venta.NroFactura;
 
                 MessageBox.Show(
                     mensaje,
                     "Aura Beauty",
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Information
-                );
+                    MessageBoxIcon.Information);
 
+                // =========================================
+                // 6. ABRIR PDF SI EXISTE
+                // =========================================
 
-                // =====================================================
-                // 8. ABRIR EL PDF
-                // =====================================================
-
-                if (
-                    !string.IsNullOrWhiteSpace(
-                        rutaPdf
-                    )
-                )
+                if (!string.IsNullOrWhiteSpace(rutaPdf))
                 {
                     try
                     {
                         GeneradorComprobantePdf.Abrir(
-                            rutaPdf
-                        );
+                            rutaPdf);
                     }
-                    catch (Exception exAbrir)
+                    catch (Exception ex)
                     {
-                        // El PDF ya existe.
-                        // Si Windows no puede abrirlo automáticamente,
-                        // simplemente informamos dónde quedó guardado.
                         MessageBox.Show(
-                            "El comprobante fue generado, "
-                            + "pero Windows no pudo abrirlo automáticamente."
-                            + "\n\n"
-                            + "Podés encontrarlo en:"
-                            + "\n"
-                            + rutaPdf
-                            + "\n\n"
-                            + exAbrir.Message,
+                            "El PDF fue generado, pero no " +
+                            "se pudo abrir automáticamente.\n\n" +
+                            rutaPdf + "\n\n" + ex.Message,
                             "Aura Beauty",
                             MessageBoxButtons.OK,
-                            MessageBoxIcon.Information
-                        );
+                            MessageBoxIcon.Information);
                     }
                 }
 
+                // =========================================
+                // 7. NUEVA OPERACIÓN
+                // =========================================
 
-                // =====================================================
-                // 9. ACTUALIZAR PRODUCTOS Y PREPARAR NUEVA VENTA
-                // =====================================================
-
-                // La venta ya descontó stock en SQL Server.
-                // Volvemos a consultar los productos para mostrar
-                // las existencias actualizadas.
-                CargarProductos();
-
+                try
+                {
+                    CargarProductos();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        "La venta ya está registrada, " +
+                        "pero no se pudo actualizar el " +
+                        "listado de productos.\n\n" +
+                        ex.Message,
+                        "Aura Beauty",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                }
 
                 PrepararNuevaVenta();
             }
             catch (Exception ex)
             {
-                // Este catch corresponde a errores ocurridos
-                // ANTES o DURANTE el registro de la venta.
+                /*
+                Si la confirmación falló antes de ser
+                registrada, conservamos el carrito
+                y su identificador para poder reintentar.
+
+                La base de datos controla que el
+                mismo IdOperacion no genere dos ventas.
+                */
+                string titulo = confirmacionRegistrada
+                    ? "Venta registrada"
+                    : "No se pudo confirmar la venta";
+
                 MessageBox.Show(
                     ex.Message,
-                    "Aura Beauty",
+                    titulo,
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
+                    MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                if (btnConfirmarVenta != null &&
+                    !btnConfirmarVenta.IsDisposed)
+                {
+                    btnConfirmarVenta.Enabled = true;
+                }
             }
         }
+
 
 
 
@@ -2245,85 +2179,104 @@ namespace Aura_Beauty
         // NUEVA VENTA
         // =========================================================
 
+        
+        /// <summary>
+        /// Descarta la venta en preparación.
+        ///
+        /// Antes de limpiar la pantalla cancela
+        /// las reservas activas de la operación.
+        /// </summary>
         private void btnNuevaVenta_Click(
             object sender,
-            EventArgs e
-        )
+            EventArgs e)
         {
-            if (carrito.Count > 0)
+            try
             {
-                DialogResult respuesta =
-                    MessageBox.Show(
-                        "La venta actual todavía tiene productos.\n\n"
-                        + "¿Deseás descartarla?",
-                        "Aura Beauty",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Question
-                    );
-
-
-                if (
-                    respuesta !=
-                    DialogResult.Yes
-                )
+                if (carrito.Count > 0)
                 {
-                    return;
+                    DialogResult respuesta =
+                        MessageBox.Show(
+                            "La venta actual tiene productos.\n\n" +
+                            "¿Deseás cancelarla y liberar " +
+                            "las unidades reservadas?",
+                            "Aura Beauty",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question);
+
+                    if (respuesta != DialogResult.Yes)
+                        return;
                 }
+
+                if (idOperacionVenta != Guid.Empty &&
+                    !ventaYaRegistrada)
+                {
+                    cnReserva.CancelarOperacion(
+                        idOperacionVenta,
+                        usuarioActual.IdUsuario);
+                }
+
+                PrepararNuevaVenta();
             }
-
-
-            PrepararNuevaVenta();
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    ex.Message,
+                    "No se pudo comenzar una nueva venta",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
         }
 
 
+
         /// <summary>
-        /// Restablece todos los datos necesarios para comenzar
-        /// una nueva operación de venta.
+        /// Prepara un carrito completamente nuevo.
+        ///
+        /// IMPORTANTE:
+        /// Este método solo debe utilizarse:
+        /// - Al abrir inicialmente el Punto de Venta.
+        /// - Después de cancelar correctamente el carrito.
+        /// - Después de confirmar definitivamente la venta.
+        ///
+        /// No debe utilizarse para abandonar reservas
+        /// activas sin cancelarlas primero.
         /// </summary>
         private void PrepararNuevaVenta()
         {
-            carrito =
-                new List<VentaDetalle>();
+            // Un nuevo carrito necesita un nuevo Guid.
+            idOperacionVenta =
+                cnReserva.CrearNuevaOperacion();
 
+            ventaYaRegistrada = false;
+
+            carrito = new List<VentaDetalle>();
 
             ActualizarCarrito();
 
+            chkConsumidorFinal.Checked = true;
 
-            chkConsumidorFinal.Checked =
-                true;
+            cboCliente.Enabled = false;
 
-
-            cboCliente.Enabled =
-                false;
-
-
-            if (
-                cboCliente.Items.Count > 0
-            )
+            if (cboCliente.Items.Count > 0)
             {
-                cboCliente.SelectedIndex =
-                    0;
+                cboCliente.SelectedIndex = 0;
             }
 
-
-            cboTipoFactura.SelectedIndex =
-                0;
-
+            if (cboTipoFactura.Items.Count > 0)
+            {
+                cboTipoFactura.SelectedIndex = 0;
+            }
 
             txtNroFactura.Text =
                 GenerarNumeroComprobante();
 
-
             txtBuscarProducto.Clear();
-
 
             LimpiarSeleccionProducto();
 
-
-            MostrarProductos(
-                listaProductos
-            );
+            MostrarProductos(listaProductos);
         }
+
 
 
         // =========================================================
@@ -2374,5 +2327,47 @@ namespace Aura_Beauty
 
             dgvProductos.ClearSelection();
         }
+
+
+        /// <summary>
+        /// Se ejecuta al cerrar el Punto de Venta.
+        ///
+        /// Libera las unidades reservadas que todavía
+        /// no se hayan convertido en una venta definitiva.
+        ///
+        /// Si no hay conexión a SQL Server, las reservas
+        /// todavía podrán liberarse por vencimiento.
+        /// </summary>
+        private void frmVentas_FormClosing(
+            object sender,
+            FormClosingEventArgs e)
+        {
+            if (ventaYaRegistrada ||
+                idOperacionVenta == Guid.Empty ||
+                carrito.Count == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                cnReserva.CancelarOperacion(
+                    idOperacionVenta,
+                    usuarioActual.IdUsuario);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "No se pudieron liberar las reservas " +
+                    "al cerrar el formulario.\n\n" +
+                    "Las unidades dejarán de estar " +
+                    "reservadas al vencer su plazo.\n\n" +
+                    ex.Message,
+                    "Aura Beauty",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+
     }
 }
