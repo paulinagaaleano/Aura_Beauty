@@ -49,6 +49,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Backup.cs" />
     <Compile Include="Categoria.cs" />
     <Compile Include="Cliente.cs" />
     <Compile Include="ComparacionVentas.cs" />
@@ -60,6 +61,7 @@
     <Compile Include="ReservaProducto.cs" />
     <Compile Include="ResumenVentas.cs" />
     <Compile Include="Rol.cs" />
+    <Compile Include="SolicitudRestauracion.cs" />
     <Compile Include="SolicitudStock.cs" />
     <Compile Include="Usuario.cs" />
     <Compile Include="VentaCabecera.cs" />

@@ -529,11 +529,21 @@ namespace Aura_Beauty
                     );
 
                     CrearBotonModulo(
-                        "Consultas",
-                        10,
-                        60,
+                         "Consultas",
+                         10,
+                         60,
+                         310
+                     );
+
+                    // Centro de respaldos: exclusivo del Administrador.
+                    CrearBotonModulo(
+                        "Centro de Respaldos",
+                        11,
+                        480,
                         310
                     );
+
+                    break;
 
                     break;
 
@@ -937,6 +947,19 @@ namespace Aura_Beauty
                             }
 
                             break;
+
+                        case 11:
+
+                            // Abre el Centro de Respaldos.
+                            // Se envía el ID del usuario autenticado.
+                            using (frmBackup formularioBackup =
+                                   new frmBackup(usuarioActual.IdUsuario))
+                            {
+                                AbrirFormularioConVolver(formularioBackup);
+                            }
+
+                            break;
+
                     }
                 }
 
@@ -1252,5 +1275,7 @@ namespace Aura_Beauty
         {
 
         }
+        // Abrir el Centro de respaldos para el usuario autenticado.
+       
     }
 }
