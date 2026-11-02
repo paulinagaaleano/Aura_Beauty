@@ -37,7 +37,7 @@ namespace Presentacion
         private Button btnActualizar;
         private Button btnSolicitarRestauracion;
         private Button btnConsultarSolicitud;
-        private Button btnProbarRestauracion;
+    
         private DataGridView dgvBackups;
 
 
@@ -209,11 +209,7 @@ namespace Presentacion
             btnHistorialRestauraciones.Name = "btnHistorialRestauraciones";
             btnHistorialRestauraciones.Click += btnHistorialRestauraciones_Click;
 
-            btnProbarRestauracion = CrearBotonEstilizado("Probar restauración", false,
-                new Point(644, 68), new Size(190, 40));
-            btnProbarRestauracion.Name = "btnProbarRestauracion";
-            btnProbarRestauracion.Click += btnProbarRestauracion_Click;
-
+           
             lblEstado = new Label
             {
                 Text = "Preparado para consultar los respaldos.",
@@ -227,7 +223,7 @@ namespace Presentacion
             {
                 btnCrearBackup, btnActualizar, btnSolicitarRestauracion,
                 btnConsultarSolicitud, btnSolicitudesPendientes,
-                btnHistorialRestauraciones, btnProbarRestauracion, lblEstado
+                btnHistorialRestauraciones, lblEstado
             });
 
             // Tarjeta de historial: el contenido y los eventos permanecen iguales.
@@ -611,7 +607,7 @@ namespace Presentacion
                     "¿Confirmás la autorización de la solicitud " +
                     idSolicitud + "?\n\n" +
                     "Esta acción registra la autorización, " +
-                    "pero no restaura todavía la base de datos.",
+                    "para la restauracion de la base de datos",
                     "Confirmar autorización",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question);
@@ -624,13 +620,14 @@ namespace Presentacion
                 objCN_Backup.AutorizarRestauracion(
                     idSolicitud,
                     idSolicitante,
+                    idUsuarioActual,
                     correo,
                     contraseña);
 
                 // Informar que la autorización se registró correctamente.
                 MessageBox.Show(
                     "La solicitud fue autorizada correctamente.\n" +
-                    "La restauración real todavía no se ejecutó.",
+                    "Restauracion exitosa :)",
                     "Autorización registrada",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
@@ -716,6 +713,7 @@ namespace Presentacion
                 objCN_Backup.RechazarRestauracion(
                     idSolicitud,
                     idSolicitante,
+                    idUsuarioActual,   
                     correo,
                     contraseña,
                     motivo);
@@ -1345,65 +1343,7 @@ namespace Presentacion
             }
         }
 
-        /// <summary>
-        /// Ejecuta una prueba manual de restauración en AuraBeautyDB_Prueba2.
-        /// Este botón es temporal y no forma parte de la autorización normal.
-        /// </summary>
-        private void btnProbarRestauracion_Click(object sender, EventArgs e)
-        {
-            // Ruta del backup que ya se verificó desde SQL Server Management Studio.
-            string rutaBackup =
-                @"C:\Users\user\OneDrive\Desktop\AuraBeautyDB_20261026_210938_779.bak";
-
-            // Confirmar que se entiende que la prueba restaura una base separada.
-            DialogResult confirmacion = MessageBox.Show(
-                "Se intentará restaurar el backup en la base de prueba " +
-                "AuraBeautyDB_Prueba2.\n\n" +
-                "No se restaurará AuraBeautyDB.\n\n" +
-                "Si AuraBeautyDB_Prueba2 ya existe, la operación puede fallar. " +
-                "¿Querés continuar?",
-                "Prueba de restauración",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning);
-
-            if (confirmacion != DialogResult.Yes)
-                return;
-
-            try
-            {
-                // Evitar iniciar varias restauraciones desde el botón.
-                btnProbarRestauracion.Enabled = false;
-                lblEstado.Text = "Restaurando backup en la base de prueba...";
-
-                // Ejecutar la validación de Negocio y la restauración de Datos.
-                objCN_Backup.RestaurarBackupEnBasePrueba(rutaBackup);
-
-                lblEstado.Text = "Restauración de prueba completada.";
-
-                MessageBox.Show(
-                    "La restauración de prueba terminó correctamente.\n\n" +
-                    "Base: AuraBeautyDB_Prueba2",
-                    "Prueba exitosa",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                lblEstado.Text = "Falló la restauración de prueba.";
-
-                MessageBox.Show(
-                    "No se pudo completar la restauración de prueba.\n\n" +
-                    ex.Message,
-                    "Error de restauración",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-            }
-            finally
-            {
-                // Volver a habilitar el botón al finalizar.
-                btnProbarRestauracion.Enabled = true;
-            }
-        }
+    
 
     }
 }

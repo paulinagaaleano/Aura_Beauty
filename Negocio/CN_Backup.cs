@@ -204,10 +204,11 @@ namespace Negocio
         /// Autoriza una restauración mediante otro administrador.
         /// </summary>
         public DataTable AutorizarRestauracion(
-            int idSolicitud,
-            int idSolicitante,
-            string correoAutorizador,
-            string contraseñaAutorizador)
+             int idSolicitud,
+             int idSolicitante,
+             int idAdministradorSesion,
+             string correoAutorizador,
+             string contraseñaAutorizador)
         {
             // Validar la solicitud.
             if (idSolicitud <= 0)
@@ -243,6 +244,15 @@ namespace Negocio
                     "Las credenciales del administrador no son correctas.");
             }
 
+
+            // Comprobar que las credenciales pertenezcan al usuario de la sesión.
+            if (autorizador.IdUsuario != idAdministradorSesion)
+            {
+                throw new ArgumentException(
+                    "Las credenciales ingresadas no corresponden al administrador " +
+                    "que tiene iniciada la sesión.");
+            }
+
             // Comprobar que tenga el rol Administrador.
             if (autorizador.IdRol != ROL_ADMINISTRADOR)
             {
@@ -255,6 +265,21 @@ namespace Negocio
             {
                 throw new ArgumentException(
                     "No puede autorizar su propia solicitud.");
+            }
+            // Validar el administrador que tiene iniciada la sesión.
+            if (idAdministradorSesion <= 0)
+            {
+                throw new ArgumentException(
+                    "No se pudo identificar al administrador de la sesión.");
+            }
+
+
+            // Impedir que el administrador solicitante autorice desde su sesión.
+            if (idAdministradorSesion == idSolicitante)
+            {
+                throw new ArgumentException(
+                    "No podés autorizar una restauración que solicitaste vos mismo. " +
+                    "Debe iniciar sesión otro administrador.");
             }
 
             // Registrar la autorización mediante SQL Server.
@@ -361,6 +386,7 @@ namespace Negocio
         public DataTable RechazarRestauracion(
             int idSolicitud,
             int idSolicitante,
+            int idAdministradorSesion,
             string correoAutorizador,
             string contraseñaAutorizador,
             string motivoRechazo)
@@ -378,6 +404,22 @@ namespace Negocio
                 throw new ArgumentException(
                     "El solicitante no es válido.");
             }
+            
+            // Validar el administrador de la sesión.
+            if (idAdministradorSesion <= 0)
+            {
+                throw new ArgumentException(
+                    "No se pudo identificar al administrador de la sesión.");
+            }
+
+            // Impedir que el solicitante rechace desde su propia sesión.
+            if (idAdministradorSesion == idSolicitante)
+            {
+                throw new ArgumentException(
+                    "No podés rechazar una restauración que solicitaste vos mismo. " +
+                    "Debe iniciar sesión otro administrador.");
+            }
+
 
             // Exigir un motivo para el rechazo.
             if (string.IsNullOrWhiteSpace(motivoRechazo))
@@ -397,6 +439,14 @@ namespace Negocio
                 throw new ArgumentException(
                     "Las credenciales del administrador no son correctas.");
             }
+
+            // Comprobar que las credenciales correspondan al administrador de sesión.
+            if (autorizador.IdUsuario != idAdministradorSesion)
+            {
+                throw new ArgumentException(
+                    "Las credenciales ingresadas no corresponden al administrador " +
+                    "que tiene iniciada la sesión.");
+            } 
 
             // Comprobar el rol.
             if (autorizador.IdRol != ROL_ADMINISTRADOR)
