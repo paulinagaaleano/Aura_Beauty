@@ -200,108 +200,134 @@ namespace Negocio
                 observaciones);
         }
 
+
+
         /// <summary>
-        /// Autoriza una restauración mediante otro administrador.
+        /// Autoriza una solicitud de restauración desde
+        /// la cuenta del administrador que inició sesión.
+        ///
+        /// Requiere ingresar nuevamente su contraseña
+        /// para confirmar esta operación sensible.
+        ///
+        /// Reglas:
+        /// - La solicitud debe ser válida.
+        /// - El administrador de sesión debe ser distinto
+        ///   del solicitante.
+        /// - La contraseña debe corresponder al
+        ///   administrador que inició sesión.
+        /// - SQL Server comprueba que la solicitud
+        ///   todavía esté pendiente.
+        ///
+        /// Se conserva la restauración de prueba
+        /// implementada actualmente en Aura Beauty.
         /// </summary>
         public DataTable AutorizarRestauracion(
-             int idSolicitud,
-             int idSolicitante,
-             int idAdministradorSesion,
-             string correoAutorizador,
-             string contraseñaAutorizador)
+            int idSolicitud,
+            int idSolicitante,
+            int idAdministradorSesion,
+            string contraseñaAdministrador)
         {
-            // Validar la solicitud.
+            // ============================================
+            // 1. VALIDAR LOS IDENTIFICADORES
+            // ============================================
+
             if (idSolicitud <= 0)
             {
                 throw new ArgumentException(
                     "La solicitud seleccionada no es válida.");
             }
 
-            // Validar el solicitante.
-            if (idSolicitante <= 0)
+            if (idSolicitante <= 0 ||
+                idAdministradorSesion <= 0)
             {
                 throw new ArgumentException(
-                    "El solicitante no es válido.");
+                    "No se pudo identificar a los administradores.");
             }
 
-            // Validar las credenciales ingresadas.
-            if (string.IsNullOrWhiteSpace(correoAutorizador) ||
-                string.IsNullOrWhiteSpace(contraseñaAutorizador))
+            // ============================================
+            // 2. IMPEDIR LA AUTOAUTORIZACIÓN
+            // ============================================
+
+            if (idSolicitante == idAdministradorSesion)
+            {
+                throw new InvalidOperationException(
+                    "No podés autorizar tu propia solicitud.");
+            }
+
+            // ============================================
+            // 3. VALIDAR CONTRASEÑA
+            // ============================================
+
+            if (string.IsNullOrEmpty(
+                contraseñaAdministrador))
             {
                 throw new ArgumentException(
-                    "Ingresá el correo y la contraseña del administrador.");
+                    "Ingresá tu contraseña para autorizar.");
             }
 
-            // Autenticar al segundo administrador.
-            Usuario autorizador = objCN_Usuario.ValidarLogin(
-                correoAutorizador,
-                contraseñaAutorizador);
-
-            // Verificar que las credenciales sean correctas.
-            if (autorizador == null)
+            if (contraseñaAdministrador.Length > 100)
             {
                 throw new ArgumentException(
-                    "Las credenciales del administrador no son correctas.");
+                    "La contraseña supera la longitud permitida.");
             }
 
+            // ============================================
+            // 4. AUTENTICAR AL ADMINISTRADOR DE SESIÓN
+            // ============================================
 
-            // Comprobar que las credenciales pertenezcan al usuario de la sesión.
-            if (autorizador.IdUsuario != idAdministradorSesion)
+            bool claveValida =
+                objCD_Backup.ValidarClaveSesion(
+                    idAdministradorSesion,
+                    contraseñaAdministrador);
+
+            if (!claveValida)
             {
-                throw new ArgumentException(
-                    "Las credenciales ingresadas no corresponden al administrador " +
-                    "que tiene iniciada la sesión.");
+                throw new InvalidOperationException(
+                    "No se pudo verificar la contraseña.");
             }
 
-            // Comprobar que tenga el rol Administrador.
-            if (autorizador.IdRol != ROL_ADMINISTRADOR)
-            {
-                throw new ArgumentException(
-                    "Solo otro administrador puede autorizar la restauración.");
-            }
+            // ============================================
+            // 5. REGISTRAR LA AUTORIZACIÓN
+            // ============================================
 
-            // Impedir que el solicitante se autorice a sí mismo.
-            if (autorizador.IdUsuario == idSolicitante)
-            {
-                throw new ArgumentException(
-                    "No puede autorizar su propia solicitud.");
-            }
-            // Validar el administrador que tiene iniciada la sesión.
-            if (idAdministradorSesion <= 0)
-            {
-                throw new ArgumentException(
-                    "No se pudo identificar al administrador de la sesión.");
-            }
-
-
-            // Impedir que el administrador solicitante autorice desde su sesión.
-            if (idAdministradorSesion == idSolicitante)
-            {
-                throw new ArgumentException(
-                    "No podés autorizar una restauración que solicitaste vos mismo. " +
-                    "Debe iniciar sesión otro administrador.");
-            }
-
-            // Registrar la autorización mediante SQL Server.
-            // El procedimiento almacenado también verifica la identidad
-            // del solicitante real de la solicitud.
+            /*
+             * El autorizador es siempre quien inició
+             * sesión en Aura Beauty.
+             *
+             * No buscamos ni utilizamos otra identidad.
+             *
+             * SP_Restore_Autorizar verifica nuevamente
+             * el estado Pendiente y que el solicitante
+             * real no sea este administrador.
+             */
             DataTable resultadoAutorizacion =
                 objCD_Backup.AutorizarRestauracion(
                     idSolicitud,
-                    autorizador.IdUsuario);
+                    idAdministradorSesion);
 
+            // ============================================
+            // 6. RESTAURACIÓN DE PRUEBA ACTUAL
+            // ============================================
+
+            /*
+             * Por ahora se mantiene el método original.
+             *
+             * El cambio para restaurar AuraBeautyDB
+             * sobre su nombre original será el paso
+             * siguiente, después del resguardo previo.
+             */
             try
             {
-                // Obtener el archivo .bak asociado a la solicitud autorizada.
                 string rutaBackup =
-                    objCD_Backup.ObtenerRutaBackupAutorizado(idSolicitud);
+                    objCD_Backup.ObtenerRutaBackupAutorizado(
+                        idSolicitud);
 
-                // Restaurar únicamente en la base de prueba.
-                objCD_Backup.RestaurarBackupEnBasePrueba2(rutaBackup);
+                objCD_Backup.RestaurarBackupEnBasePrueba2(
+                    rutaBackup);
             }
             catch (Exception ex)
             {
-                // Registrar el fallo de la restauración.
+                // Registrar que la restauración falló.
                 try
                 {
                     objCD_Backup.RegistrarResultadoRestauracion(
@@ -312,27 +338,35 @@ namespace Negocio
                 catch (Exception exRegistro)
                 {
                     throw new Exception(
-                        "La restauración falló y no se pudo registrar el resultado. " +
-                        "Error de restauración: " + ex.Message +
-                        ". Error de registro: " + exRegistro.Message,
+                        "La restauración falló y tampoco " +
+                        "se pudo registrar el resultado. " +
+                        "Error de restauración: " +
+                        ex.Message +
+                        ". Error de registro: " +
+                        exRegistro.Message,
                         exRegistro);
                 }
 
                 throw new Exception(
-                    "La solicitud fue autorizada, pero la restauración de prueba falló: " +
+                    "La solicitud fue autorizada, " +
+                    "pero la restauración de prueba falló: " +
                     ex.Message,
                     ex);
             }
 
-            // Registrar que la restauración finalizó correctamente.
+            // ============================================
+            // 7. REGISTRAR EL RESULTADO
+            // ============================================
+
             objCD_Backup.RegistrarResultadoRestauracion(
                 idSolicitud,
                 "Exitosa",
                 "Restauración de prueba completada correctamente.");
 
-            // Devolver los datos de la autorización al formulario.
             return resultadoAutorizacion;
         }
+
+
 
 
         /// <summary>
@@ -380,94 +414,115 @@ namespace Negocio
         }
 
 
+
+
         /// <summary>
-        /// Rechaza una solicitud mediante un administrador diferente.
+        /// Rechaza una solicitud desde la cuenta del
+        /// administrador que tiene iniciada la sesión.
+        ///
+        /// Requiere su propia contraseña y un motivo
+        /// obligatorio de rechazo.
+        ///
+        /// No permite rechazar solicitudes propias.
         /// </summary>
         public DataTable RechazarRestauracion(
             int idSolicitud,
             int idSolicitante,
             int idAdministradorSesion,
-            string correoAutorizador,
-            string contraseñaAutorizador,
+            string contraseñaAdministrador,
             string motivoRechazo)
         {
-            // Validar la solicitud.
+            // ============================================
+            // 1. IDENTIFICADORES
+            // ============================================
+
             if (idSolicitud <= 0)
             {
                 throw new ArgumentException(
                     "La solicitud seleccionada no es válida.");
             }
 
-            // Validar el solicitante.
-            if (idSolicitante <= 0)
+            if (idSolicitante <= 0 ||
+                idAdministradorSesion <= 0)
             {
                 throw new ArgumentException(
-                    "El solicitante no es válido.");
+                    "No se pudo identificar a los administradores.");
             }
-            
-            // Validar el administrador de la sesión.
-            if (idAdministradorSesion <= 0)
+
+            // ============================================
+            // 2. IMPEDIR EL RECHAZO PROPIO
+            // ============================================
+
+            if (idSolicitante == idAdministradorSesion)
             {
-                throw new ArgumentException(
-                    "No se pudo identificar al administrador de la sesión.");
+                throw new InvalidOperationException(
+                    "No podés rechazar tu propia solicitud.");
             }
 
-            // Impedir que el solicitante rechace desde su propia sesión.
-            if (idAdministradorSesion == idSolicitante)
-            {
-                throw new ArgumentException(
-                    "No podés rechazar una restauración que solicitaste vos mismo. " +
-                    "Debe iniciar sesión otro administrador.");
-            }
+            // ============================================
+            // 3. MOTIVO OBLIGATORIO
+            // ============================================
 
-
-            // Exigir un motivo para el rechazo.
             if (string.IsNullOrWhiteSpace(motivoRechazo))
             {
                 throw new ArgumentException(
-                    "Debe indicar el motivo del rechazo.");
+                    "Debés indicar el motivo del rechazo.");
             }
 
-            // Autenticar al administrador que resolverá la solicitud.
-            Usuario autorizador = objCN_Usuario.ValidarLogin(
-                correoAutorizador,
-                contraseñaAutorizador);
-
-            // Verificar las credenciales.
-            if (autorizador == null)
+            if (motivoRechazo.Trim().Length > 1000)
             {
                 throw new ArgumentException(
-                    "Las credenciales del administrador no son correctas.");
+                    "El motivo del rechazo supera " +
+                    "los 1000 caracteres permitidos.");
             }
 
-            // Comprobar que las credenciales correspondan al administrador de sesión.
-            if (autorizador.IdUsuario != idAdministradorSesion)
-            {
-                throw new ArgumentException(
-                    "Las credenciales ingresadas no corresponden al administrador " +
-                    "que tiene iniciada la sesión.");
-            } 
+            // ============================================
+            // 4. CONTRASEÑA DEL ADMINISTRADOR EN SESIÓN
+            // ============================================
 
-            // Comprobar el rol.
-            if (autorizador.IdRol != ROL_ADMINISTRADOR)
+            if (string.IsNullOrEmpty(
+                contraseñaAdministrador))
             {
                 throw new ArgumentException(
-                    "Solo un administrador puede rechazar la solicitud.");
+                    "Ingresá tu contraseña para rechazar.");
             }
 
-            // Impedir que el solicitante resuelva su propia solicitud.
-            if (autorizador.IdUsuario == idSolicitante)
+            if (contraseñaAdministrador.Length > 100)
             {
                 throw new ArgumentException(
-                    "El solicitante no puede rechazar su propia solicitud.");
+                    "La contraseña supera la longitud permitida.");
             }
 
-            // Enviar el rechazo a SQL Server.
+            bool claveValida =
+                objCD_Backup.ValidarClaveSesion(
+                    idAdministradorSesion,
+                    contraseñaAdministrador);
+
+            if (!claveValida)
+            {
+                throw new InvalidOperationException(
+                    "No se pudo verificar la contraseña.");
+            }
+
+            // ============================================
+            // 5. REGISTRAR EL RECHAZO
+            // ============================================
+
+            /*
+             * Se registra como responsable al
+             * administrador que inició sesión.
+             *
+             * SP_Restore_Rechazar comprueba que
+             * la solicitud exista, esté Pendiente
+             * y no haya sido creada por él.
+             */
             return objCD_Backup.RechazarRestauracion(
                 idSolicitud,
-                autorizador.IdUsuario,
+                idAdministradorSesion,
                 motivoRechazo.Trim());
         }
+
+
 
         /// <summary>
         /// Consulta el estado de una solicitud de restauración.
@@ -538,6 +593,139 @@ namespace Negocio
             // Delegar la restauración a la capa de Datos.
             objCD_Backup.RestaurarBackupEnBasePrueba2(rutaArchivo);
         }
+
+
+
+        /// <summary>
+        /// Autoriza una restauración y recupera AuraBeautyDB
+        /// sobre su nombre original.
+        ///
+        /// Orden de seguridad:
+        /// 1. Validar administrador y contraseña.
+        /// 2. Comprobar que la solicitud esté pendiente.
+        /// 3. Verificar el archivo de respaldo.
+        /// 4. Crear y verificar el respaldo preventivo.
+        /// 5. Registrar la autorización.
+        /// 6. Ejecutar la restauración definitiva.
+        ///
+        /// El historial de recuperación se registra
+        /// en AuraBeautyDB_Admin.
+        /// </summary>
+        public string AutorizarYRestaurarOriginal(
+            int idSolicitud,
+            int idSolicitante,
+            int idAdministradorSesion,
+            string contraseña)
+        {
+            // ===========================================
+            // 1. VALIDACIONES GENERALES
+            // ===========================================
+
+            if (idSolicitud <= 0 ||
+                idSolicitante <= 0 ||
+                idAdministradorSesion <= 0)
+            {
+                throw new ArgumentException(
+                    "Los identificadores no son válidos.");
+            }
+
+            if (idSolicitante == idAdministradorSesion)
+            {
+                throw new InvalidOperationException(
+                    "No podés autorizar tu propia solicitud.");
+            }
+
+            if (string.IsNullOrEmpty(contraseña))
+            {
+                throw new ArgumentException(
+                    "Ingresá tu contraseña.");
+            }
+
+            // ===========================================
+            // 2. VALIDAR ADMINISTRADOR EN SESIÓN
+            // ===========================================
+
+            bool claveValida =
+                objCD_Backup.ValidarClaveSesion(
+                    idAdministradorSesion,
+                    contraseña);
+
+            if (!claveValida)
+            {
+                throw new InvalidOperationException(
+                    "La contraseña es incorrecta.");
+            }
+
+            // ===========================================
+            // 3. PREPARAR RESTAURACIÓN
+            // ===========================================
+
+            CD_RestauracionSegura restaurador =
+                new CD_RestauracionSegura();
+
+            // La base administrativa debe existir.
+            restaurador.VerificarEntorno();
+
+            // Obtener el respaldo de una solicitud pendiente.
+            string rutaOrigen =
+                restaurador.ObtenerRutaPendiente(
+                    idSolicitud,
+                    idAdministradorSesion);
+
+            // Verificar estructura y validez del respaldo
+            // antes de iniciar modificaciones.
+            restaurador.ValidarBackupYPrepararMovimientos(
+                rutaOrigen);
+
+            // ===========================================
+            // 4. EJECUTAR CIRCUITO SEGURO
+            // ===========================================
+
+            /*
+             * RestaurarOriginal ejecutará:
+             *
+             * A. Crear el respaldo preventivo.
+             * B. Verificar ese respaldo.
+             * C. Ejecutar la función de autorización.
+             * D. Restaurar la base original.
+             *
+             * La autorización no ocurre antes del
+             * respaldo preventivo.
+             */
+
+            return restaurador.RestaurarOriginal(
+                idSolicitud,
+                idAdministradorSesion,
+                rutaOrigen,
+                () =>
+                {
+                    // Volver a verificar que la solicitud
+                    // continúa pendiente y que el archivo
+                    // asociado sigue siendo el mismo.
+
+                    string rutaActual =
+                        restaurador.ObtenerRutaPendiente(
+                            idSolicitud,
+                            idAdministradorSesion);
+
+                    if (!string.Equals(
+                        rutaOrigen,
+                        rutaActual,
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException(
+                            "El respaldo asociado a la solicitud " +
+                            "cambió durante el proceso.");
+                    }
+
+                    // Recién ahora registrar la autorización.
+                    objCD_Backup.AutorizarRestauracion(
+                        idSolicitud,
+                        idAdministradorSesion);
+                });
+        }
+
+
 
     }
 }

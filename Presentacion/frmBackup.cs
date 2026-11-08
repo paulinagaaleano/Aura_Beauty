@@ -561,91 +561,167 @@ namespace Presentacion
         // AUTORIZAR SOLICITUD
         // ------------------------------------------------------------
 
+
         /// <summary>
-        /// Solicita las credenciales de un segundo administrador
-        /// y registra la autorización de la solicitud seleccionada.
-        /// No ejecuta RESTORE DATABASE.
+        /// Autoriza la solicitud seleccionada y ejecuta
+        /// la recuperación real de AuraBeautyDB.
+        ///
+        /// La restauración requiere una confirmación
+        /// expresa porque reemplazará los datos actuales.
         /// </summary>
-        private void btnAutorizarSolicitud_Click(object sender, EventArgs e)
+        private void btnAutorizarSolicitud_Click(
+            object sender,
+            EventArgs e)
         {
-            // Comprobar que exista una solicitud seleccionada.
             if (dgvSolicitudesPendientes == null ||
                 dgvSolicitudesPendientes.CurrentRow == null)
             {
                 MessageBox.Show(
                     "Seleccioná una solicitud pendiente.",
-                    "Autorizar solicitud",
+                    "Aura Beauty",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
                 return;
             }
 
+            int idSolicitud = Convert.ToInt32(
+                dgvSolicitudesPendientes.CurrentRow
+                    .Cells["IdSolicitud"].Value);
+
+            int idSolicitante = Convert.ToInt32(
+                dgvSolicitudesPendientes.CurrentRow
+                    .Cells["IdSolicitante"].Value);
+
+            // Evitar autorizar la solicitud propia.
+            if (idSolicitante == idUsuarioActual)
+            {
+                MessageBox.Show(
+                    "No podés autorizar tu propia solicitud.",
+                    "Aura Beauty",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Identificar nuevamente al administrador
+            // que tiene abierta su propia sesión.
+            string contraseña;
+
+            if (!SolicitarContraseñaAdministrador(
+                out contraseña))
+            {
+                return;
+            }
+
+            /*
+             * Advertir claramente que la base
+             * operativa será reemplazada.
+             */
+            DialogResult confirmacion = MessageBox.Show(
+                "¿Confirmás la restauración de la " +
+                "solicitud N.º " + idSolicitud + "?\n\n" +
+                "ATENCIÓN:\n" +
+                "Se reemplazará la base AuraBeautyDB " +
+                "por el contenido del respaldo elegido.\n\n" +
+                "Antes, el sistema creará y verificará " +
+                "una copia preventiva de la base actual.\n\n" +
+                "Todas las demás sesiones de Aura Beauty " +
+                "deben estar cerradas.\n\n" +
+                "¿Deseás continuar?",
+                "Confirmar restauración real",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+
+            if (confirmacion != DialogResult.Yes)
+                return;
+
+            Button boton = sender as Button;
+
             try
             {
-                // Leer los identificadores de la fila seleccionada.
-                int idSolicitud = Convert.ToInt32(
-                    dgvSolicitudesPendientes.CurrentRow
-                        .Cells["IdSolicitud"].Value);
+                // Evita iniciar dos veces la operación
+                // mediante el mismo botón.
+                if (boton != null)
+                    boton.Enabled = false;
 
-                int idSolicitante = Convert.ToInt32(
-                    dgvSolicitudesPendientes.CurrentRow
-                        .Cells["IdSolicitante"].Value);
+                /*
+                 * La capa Negocio validará:
+                 * - Contraseña del administrador B.
+                 * - Permisos.
+                 * - Estado de la solicitud.
+                 * - Validez del archivo de respaldo.
+                 *
+                 * Después realizará el resguardo
+                 * y la restauración.
+                 */
+                string rutaPreventiva =
+                    objCN_Backup.AutorizarYRestaurarOriginal(
+                        idSolicitud,
+                        idSolicitante,
+                        idUsuarioActual,
+                        contraseña);
 
-                // Solicitar correo y contraseña del segundo administrador.
-                string correo;
-                string contraseña;
-
-                if (!SolicitarCredencialesAdministrador(
-                    out correo, out contraseña))
-                {
-                    // El usuario canceló el ingreso de credenciales.
-                    return;
-                }
-
-                // Confirmar que se desea registrar la autorización.
-                DialogResult confirmacion = MessageBox.Show(
-                    "¿Confirmás la autorización de la solicitud " +
-                    idSolicitud + "?\n\n" +
-                    "Esta acción registra la autorización, " +
-                    "para la restauracion de la base de datos",
-                    "Confirmar autorización",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question);
-
-                if (confirmacion != DialogResult.Yes)
-                    return;
-
-                // Validar las credenciales, el rol y que el autorizador
-                // sea distinto del administrador solicitante.
-                objCN_Backup.AutorizarRestauracion(
-                    idSolicitud,
-                    idSolicitante,
-                    idUsuarioActual,
-                    correo,
-                    contraseña);
-
-                // Informar que la autorización se registró correctamente.
                 MessageBox.Show(
-                    "La solicitud fue autorizada correctamente.\n" +
-                    "Restauracion exitosa :)",
-                    "Autorización registrada",
+                    "La restauración terminó correctamente.\n\n" +
+                    "Base restaurada: AuraBeautyDB\n\n" +
+                    "Copia preventiva conservada en:\n" +
+                    rutaPreventiva + "\n\n" +
+                    "La aplicación se cerrará para evitar " +
+                    "que continúe utilizando información " +
+                    "de la sesión anterior.",
+                    "Restauración completada",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
 
-                // Volver a consultar la lista para quitar de la grilla
-                // la solicitud que ya no está pendiente.
-                ActualizarSolicitudesPendientes();
+                // La base fue reemplazada.
+                // Se debe volver a abrir Aura Beauty.
+                Application.Exit();
             }
             catch (Exception ex)
             {
-                // Mostrar errores de validación o de SQL Server.
+                /*
+                 * No informar simplemente que la
+                 * autorización falló: puede haberse
+                 * registrado antes del error.
+                 *
+                 * La bitácora externa permitirá
+                 * comprobar el estado real.
+                 */
                 MessageBox.Show(
-                    "No se pudo autorizar la solicitud.\n\n" + ex.Message,
-                    "Error de autorización",
+                    "No se confirmó la finalización " +
+                    "de la restauración.\n\n" +
+                    "La autorización podría haber quedado " +
+                    "registrada.\n\n" +
+                    "Revisá AuraBeautyDB_Admin antes " +
+                    "de intentar nuevamente.\n\n" +
+                    ex.Message,
+                    "Revisar restauración",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
+
+                // Actualizar la grilla incluso
+                // cuando ocurrió un error.
+                try
+                {
+                    ActualizarSolicitudesPendientes();
+                }
+                catch
+                {
+                    // La base podría estar temporalmente
+                    // inaccesible. No ocultamos el error.
+                }
+            }
+            finally
+            {
+                if (boton != null &&
+                    !boton.IsDisposed)
+                {
+                    boton.Enabled = true;
+                }
             }
         }
+
 
 
         // ------------------------------------------------------------
@@ -688,15 +764,17 @@ namespace Presentacion
                 if (motivo == null)
                     return;
 
-                // Solicitar las credenciales del administrador que resolverá.
-                string correo;
+
+                // Pedir solamente la contraseña
+                // del segundo administrador.
                 string contraseña;
 
-                if (!SolicitarCredencialesAdministrador(
-                    out correo, out contraseña))
+                if (!SolicitarContraseñaAdministrador(
+                    out contraseña))
                 {
                     return;
                 }
+
 
                 // Confirmar la decisión antes de modificar el estado.
                 DialogResult confirmacion = MessageBox.Show(
@@ -710,13 +788,14 @@ namespace Presentacion
                     return;
 
                 // Validar las credenciales y registrar el rechazo en SQL Server.
+
                 objCN_Backup.RechazarRestauracion(
                     idSolicitud,
                     idSolicitante,
-                    idUsuarioActual,   
-                    correo,
+                    idUsuarioActual,
                     contraseña,
                     motivo);
+
 
                 // Informar que el rechazo quedó registrado.
                 MessageBox.Show(
@@ -745,116 +824,183 @@ namespace Presentacion
         // ------------------------------------------------------------
 
         /// <summary>
-        /// Muestra una ventana para que otro administrador ingrese
-        /// su correo y contraseña antes de autorizar o rechazar.
-        /// Devuelve false si el usuario cancela la operación.
+        /// Solicita nuevamente la contraseña del
+        /// administrador que inició sesión.
+        ///
+        /// No solicita correo porque la sesión
+        /// ya identifica al usuario.
+        ///
+        /// Devuelve:
+        /// true  = ingresó una contraseña.
+        /// false = canceló la ventana.
+        ///
+        /// La validación real se realiza después,
+        /// mediante Negocio y SQL Server.
         /// </summary>
-        private bool SolicitarCredencialesAdministrador(
-            out string correo, out string contraseña)
+        private bool SolicitarContraseñaAdministrador(
+            out string contraseña)
         {
-            // Inicializar los resultados para cubrir el caso de cancelación.
-            correo = string.Empty;
             contraseña = string.Empty;
 
-            // Crear una ventana temporal para solicitar las credenciales.
             using (Form ventana = new Form())
             {
-                ventana.Text = "Validar segundo administrador";
-                ventana.StartPosition = FormStartPosition.CenterParent;
-                ventana.FormBorderStyle = FormBorderStyle.FixedDialog;
-                ventana.ClientSize = new Size(400, 210);
+                // ========================================
+                // CONFIGURACIÓN GENERAL
+                // ========================================
+
+                ventana.Text =
+                    "Confirmar identidad - Aura Beauty";
+
+                ventana.StartPosition =
+                    FormStartPosition.CenterParent;
+
+                ventana.FormBorderStyle =
+                    FormBorderStyle.FixedDialog;
+
+                ventana.ClientSize = new Size(420, 190);
+
                 ventana.MaximizeBox = false;
                 ventana.MinimizeBox = false;
+                ventana.ShowInTaskbar = false;
+                ventana.BackColor = fondo;
 
-                // Etiqueta para el correo.
-                Label lblCorreo = new Label
+                // ========================================
+                // TEXTO EXPLICATIVO
+                // ========================================
+
+                Label lblIndicacion = new Label
                 {
-                    Text = "Correo del administrador:",
+                    Text =
+                        "Para continuar, ingresá la contraseña " +
+                        "de tu cuenta de administrador.",
                     Location = new Point(20, 20),
-                    AutoSize = true
+                    Size = new Size(375, 42),
+                    ForeColor = texto,
+                    Font = new Font(
+                        "Segoe UI",
+                        9.5F,
+                        FontStyle.Regular)
                 };
 
-                // Campo donde se ingresa el correo.
-                TextBox txtCorreo = new TextBox
-                {
-                    Location = new Point(20, 45),
-                    Width = 350
-                };
+                // ========================================
+                // ETIQUETA
+                // ========================================
 
-                // Etiqueta para la contraseña.
                 Label lblContraseña = new Label
                 {
-                    Text = "Contraseña:",
-                    Location = new Point(20, 80),
-                    AutoSize = true
+                    Text = "Tu contraseña:",
+                    Location = new Point(20, 67),
+                    AutoSize = true,
+                    ForeColor = texto,
+                    Font = new Font(
+                        "Segoe UI",
+                        9F,
+                        FontStyle.Bold)
                 };
 
-                // Campo que oculta los caracteres de la contraseña.
+                // ========================================
+                // CONTRASEÑA OCULTA
+                // ========================================
+
                 TextBox txtContraseña = new TextBox
                 {
-                    Location = new Point(20, 105),
-                    Width = 350,
-                    UseSystemPasswordChar = true
+                    Location = new Point(20, 94),
+                    Width = 375,
+                    UseSystemPasswordChar = true,
+                    MaxLength = 100
                 };
 
-                // Botón para confirmar las credenciales.
+                // ========================================
+                // BOTÓN CONTINUAR
+                // ========================================
+
                 Button btnAceptar = new Button
                 {
                     Text = "Continuar",
-                    Location = new Point(185, 155),
+                    Location = new Point(205, 140),
                     Size = new Size(90, 32),
+                    BackColor = rosa,
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
                     DialogResult = DialogResult.OK
                 };
 
-                // Botón para cancelar sin realizar cambios.
+                btnAceptar.FlatAppearance.BorderSize = 0;
+
+                // ========================================
+                // BOTÓN CANCELAR
+                // ========================================
+
                 Button btnCancelar = new Button
                 {
                     Text = "Cancelar",
-                    Location = new Point(280, 155),
+                    Location = new Point(305, 140),
                     Size = new Size(90, 32),
+                    BackColor = beige,
+                    ForeColor = texto,
+                    FlatStyle = FlatStyle.Flat,
                     DialogResult = DialogResult.Cancel
                 };
 
-                // Agregar los controles a la ventana.
-                ventana.Controls.Add(lblCorreo);
-                ventana.Controls.Add(txtCorreo);
+                btnCancelar.FlatAppearance.BorderSize = 0;
+
+                // ========================================
+                // VALIDACIÓN VISUAL
+                // ========================================
+
+                btnAceptar.Click += (sender, e) =>
+                {
+                    if (string.IsNullOrEmpty(
+                        txtContraseña.Text))
+                    {
+                        MessageBox.Show(
+                            "Ingresá tu contraseña.",
+                            "Contraseña requerida",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
+
+                        ventana.DialogResult =
+                            DialogResult.None;
+
+                        txtContraseña.Focus();
+                    }
+                };
+
+                // ========================================
+                // ARMAR LA VENTANA
+                // ========================================
+
+                ventana.Controls.Add(lblIndicacion);
                 ventana.Controls.Add(lblContraseña);
                 ventana.Controls.Add(txtContraseña);
                 ventana.Controls.Add(btnAceptar);
                 ventana.Controls.Add(btnCancelar);
 
-                // Definir los botones predeterminados del formulario.
                 ventana.AcceptButton = btnAceptar;
                 ventana.CancelButton = btnCancelar;
 
-                // Mostrar la ventana y comprobar si se confirmó.
-                if (ventana.ShowDialog(this) != DialogResult.OK)
-                    return false;
-
-                // Leer los datos ingresados.
-                correo = txtCorreo.Text.Trim();
-                contraseña = txtContraseña.Text;
-
-                // Comprobar que ambos campos estén completos.
-                if (string.IsNullOrWhiteSpace(correo) ||
-                    string.IsNullOrWhiteSpace(contraseña))
+                ventana.Shown += (sender, e) =>
                 {
-                    MessageBox.Show(
-                        "Debés ingresar el correo y la contraseña.",
-                        "Datos incompletos",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
+                    txtContraseña.Focus();
+                };
 
-                    // Indicar que no se debe continuar.
-                    correo = string.Empty;
-                    contraseña = string.Empty;
+                // ========================================
+                // MOSTRAR Y DEVOLVER RESULTADO
+                // ========================================
+
+                if (ventana.ShowDialog(this) !=
+                    DialogResult.OK)
+                {
                     return false;
                 }
 
-                // Entregar las credenciales al método que las valida.
-                return true;
+                contraseña = txtContraseña.Text;
+
+                return !string.IsNullOrEmpty(contraseña);
             }
         }
+
+
 
 
         // ------------------------------------------------------------

@@ -56,6 +56,7 @@
     <Compile Include="CD_Producto.cs" />
     <Compile Include="CD_Reporte.cs" />
     <Compile Include="CD_ReservaProducto.cs" />
+    <Compile Include="CD_RestauracionSegura.cs" />
     <Compile Include="CD_Rol.cs" />
     <Compile Include="CD_SolicitudStock.cs" />
     <Compile Include="CD_Stock.cs" />

@@ -564,7 +564,7 @@ namespace Datos
         {
             using (SqlConnection conexion = new SqlConnection(cadenaConexion))
             using (SqlCommand comando = new SqlCommand(
-                "dbo.SP_Restore_RegistrarResultado", conexion))
+                "dbo.SP_Restore_Registrar", conexion))
             {
                 comando.CommandType = CommandType.StoredProcedure;
                 comando.Parameters.Add("@IdSolicitud", SqlDbType.Int).Value = idSolicitud;
@@ -741,6 +741,142 @@ namespace Datos
 
             return nombreBase;
         }
+
+
+        /// <summary>
+        /// Identifica al segundo administrador a partir
+        /// de su contraseña.
+        ///
+        /// Rechaza contraseñas incorrectas, compartidas,
+        /// pertenecientes al solicitante o pertenecientes
+        /// al usuario que tiene la sesión abierta.
+        ///
+        /// No devuelve ni registra la contraseña.
+        /// </summary>
+        public int ValidarAutorizador(
+            string contraseña,
+            int idSolicitante,
+            int idAdministradorSesion)
+        {
+            using (SqlConnection conexion =
+                new SqlConnection(cadenaConexion))
+            using (SqlCommand comando =
+                new SqlCommand(
+                    "dbo.SP_Backup_ValidarAutorizador",
+                    conexion))
+            {
+                comando.CommandType =
+                    CommandType.StoredProcedure;
+
+                comando.Parameters.Add(
+                    "@Contrasena",
+                    SqlDbType.NVarChar,
+                    100).Value = contraseña;
+
+                comando.Parameters.Add(
+                    "@IdSolicitante",
+                    SqlDbType.Int).Value = idSolicitante;
+
+                comando.Parameters.Add(
+                    "@IdAdministradorSesion",
+                    SqlDbType.Int).Value = idAdministradorSesion;
+
+                try
+                {
+                    conexion.Open();
+
+                    object resultado =
+                        comando.ExecuteScalar();
+
+                    if (resultado == null ||
+                        resultado == DBNull.Value)
+                    {
+                        throw new InvalidOperationException(
+                            "No se pudo identificar " +
+                            "al administrador.");
+                    }
+
+                    return Convert.ToInt32(resultado);
+                }
+                catch (SqlException ex)
+                {
+                    throw new InvalidOperationException(
+                        "No se pudo validar al administrador. " +
+                        ex.Message,
+                        ex);
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Verifica la contraseña del administrador
+        /// que tiene iniciada la sesión.
+        ///
+        /// CAPA DATOS:
+        /// Ejecuta el procedimiento almacenado
+        /// SP_Backup_ValidarClaveSesion.
+        ///
+        /// No busca otros administradores por clave.
+        /// No devuelve ni almacena contraseñas.
+        /// </summary>
+        /// <param name="idUsuario">
+        /// Identificador del administrador autenticado.
+        /// </param>
+        /// <param name="contraseña">
+        /// Contraseña introducida para confirmar
+        /// una operación sensible.
+        /// </param>
+        /// <returns>
+        /// True si SQL Server confirmó la contraseña.
+        /// </returns>
+        public bool ValidarClaveSesion(
+            int idUsuario,
+            string contraseña)
+        {
+            using (SqlConnection conexion =
+                new SqlConnection(cadenaConexion))
+            using (SqlCommand comando =
+                new SqlCommand(
+                    "dbo.SP_Backup_ValidarClaveSesion",
+                    conexion))
+            {
+                comando.CommandType =
+                    CommandType.StoredProcedure;
+
+                comando.Parameters.Add(
+                    "@IdUsuario",
+                    SqlDbType.Int
+                ).Value = idUsuario;
+
+                comando.Parameters.Add(
+                    "@Contrasena",
+                    SqlDbType.NVarChar,
+                    100
+                ).Value = contraseña;
+
+                try
+                {
+                    conexion.Open();
+
+                    object resultado =
+                        comando.ExecuteScalar();
+
+                    return resultado != null &&
+                           resultado != DBNull.Value &&
+                           Convert.ToBoolean(resultado);
+                }
+                catch (SqlException ex)
+                {
+                    throw new InvalidOperationException(
+                        "No se pudo validar la contraseña. " +
+                        ex.Message,
+                        ex);
+                }
+            }
+        }
+
+
 
     }
 }
