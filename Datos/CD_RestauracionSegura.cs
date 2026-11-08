@@ -19,6 +19,35 @@ namespace Datos
     /// </summary>
     public class CD_RestauracionSegura
     {
+
+
+        /// <summary>
+        /// Representa los datos necesarios para
+        /// identificar una solicitud de restauración.
+        ///
+        /// Permite distinguir solicitudes que
+        /// tengan el mismo número después de
+        /// recuperar una copia anterior de la base.
+        /// </summary>
+        public sealed class IdentidadSolicitudPendiente
+        {
+            /// <summary>
+            /// Identificador del respaldo seleccionado.
+            /// </summary>
+            public int IdBackup { get; set; }
+
+            /// <summary>
+            /// Fecha exacta en la que se creó
+            /// la solicitud de restauración.
+            /// </summary>
+            public DateTime FechaSolicitud { get; set; }
+
+            /// <summary>
+            /// Ruta completa del archivo .bak.
+            /// </summary>
+            public string RutaArchivo { get; set; }
+        }
+
         private const string BaseOriginal = "AuraBeautyDB";
         private const string BaseAuditoria = "AuraBeautyDB_Admin";
 
@@ -431,19 +460,25 @@ namespace Datos
         }
 
         /// <summary>
-        /// Registra el comienzo de la recuperación fuera
-        /// de AuraBeautyDB, para conservar la auditoría.
+        /// Registra el inicio de la recuperación en
+        /// AuraBeautyDB_Admin, fuera de la base que
+        /// eventualmente será restaurada.
+        ///
+        /// El índice único impedirá iniciar otra
+        /// ejecución no fallida con la misma identidad.
         /// </summary>
         private void IniciarAuditoria(
             Guid idEjecucion,
             int idSolicitud,
             int idAutorizador,
             string origen,
-            string preventivo)
+            string preventivo,
+            int idBackupOrigen,
+            DateTime fechaSolicitudOrigen)
         {
-            using (SqlConnection cn =
+            using (SqlConnection conexion =
                 new SqlConnection(Cadena(BaseAuditoria)))
-            using (SqlCommand cmd = new SqlCommand(@"
+            using (SqlCommand comando = new SqlCommand(@"
                 INSERT INTO dbo.RestauracionAuditoria
                 (
                     IdEjecucion,
@@ -451,37 +486,65 @@ namespace Datos
                     IdAutorizador,
                     RutaBackupOrigen,
                     RutaBackupPreventivo,
+                    IdBackupOrigen,
+                    FechaSolicitudOrigen,
                     Estado
                 )
                 VALUES
                 (
-                    @Ejecucion, @Solicitud,
-                    @Autorizador, @Origen,
-                    @Preventivo, 'INICIADA'
-                );", cn))
+                    @Ejecucion,
+                    @Solicitud,
+                    @Autorizador,
+                    @Origen,
+                    @Preventivo,
+                    @IdBackupOrigen,
+                    @FechaSolicitudOrigen,
+                    'INICIADA'
+                );", conexion))
             {
-                cmd.Parameters.Add(
-                    "@Ejecucion", SqlDbType.UniqueIdentifier
+                comando.Parameters.Add(
+                    "@Ejecucion",
+                    SqlDbType.UniqueIdentifier
                 ).Value = idEjecucion;
 
-                cmd.Parameters.Add(
-                    "@Solicitud", SqlDbType.Int
+                comando.Parameters.Add(
+                    "@Solicitud",
+                    SqlDbType.Int
                 ).Value = idSolicitud;
 
-                cmd.Parameters.Add(
-                    "@Autorizador", SqlDbType.Int
+                comando.Parameters.Add(
+                    "@Autorizador",
+                    SqlDbType.Int
                 ).Value = idAutorizador;
 
-                cmd.Parameters.Add(
-                    "@Origen", SqlDbType.NVarChar, 4000
+                comando.Parameters.Add(
+                    "@Origen",
+                    SqlDbType.NVarChar,
+                    4000
                 ).Value = origen;
 
-                cmd.Parameters.Add(
-                    "@Preventivo", SqlDbType.NVarChar, 4000
+                comando.Parameters.Add(
+                    "@Preventivo",
+                    SqlDbType.NVarChar,
+                    4000
                 ).Value = preventivo;
 
-                cn.Open();
-                cmd.ExecuteNonQuery();
+                comando.Parameters.Add(
+                    "@IdBackupOrigen",
+                    SqlDbType.Int
+                ).Value = idBackupOrigen;
+
+                SqlParameter fecha =
+                    comando.Parameters.Add(
+                        "@FechaSolicitudOrigen",
+                        SqlDbType.DateTime2);
+
+                fecha.Scale = 7;
+                fecha.Value = fechaSolicitudOrigen;
+
+                conexion.Open();
+
+                comando.ExecuteNonQuery();
             }
         }
 
@@ -536,81 +599,132 @@ namespace Datos
         }
 
         /// <summary>
-        /// Ejecuta la restauración real.
+        /// Restaura AuraBeautyDB conservando su nombre.
         ///
-        /// Devuelve la ruta del respaldo preventivo.
-        /// El archivo preventivo NO se elimina.
+        /// Secuencia:
+        /// 1. Verificar el entorno SQL.
+        /// 2. Verificar la identidad de la solicitud.
+        /// 3. Comprobar que no fue procesada.
+        /// 4. Validar el respaldo solicitado.
+        /// 5. Registrar el inicio en la auditoría externa.
+        /// 6. Crear y verificar el respaldo preventivo.
+        /// 7. Registrar la autorización.
+        /// 8. Restaurar AuraBeautyDB.
+        /// 9. Comprobar que quede ONLINE.
+        /// 10. Registrar el resultado definitivo.
+        ///
+        /// Si la autorización pudo haberse registrado,
+        /// cualquier error posterior queda en REVISAR.
         /// </summary>
-
         public string RestaurarOriginal(
             int idSolicitud,
             int idAutorizador,
             string rutaOrigen,
+            int idBackupOrigen,
+            DateTime fechaSolicitudOrigen,
             Action confirmarAutorizacion)
-
-
         {
+            if (idSolicitud <= 0 ||
+                idAutorizador <= 0 ||
+                idBackupOrigen <= 0)
+            {
+                throw new ArgumentException(
+                    "Los identificadores no son válidos.");
+            }
 
+            if (fechaSolicitudOrigen == DateTime.MinValue)
+            {
+                throw new ArgumentException(
+                    "La fecha de la solicitud no es válida.");
+            }
 
-            // La autorización se ejecutará únicamente
-            // después de crear y verificar el respaldo preventivo.
             if (confirmarAutorizacion == null)
             {
                 throw new ArgumentNullException(
                     "confirmarAutorizacion");
             }
 
-            if (idSolicitud <= 0 || idAutorizador <= 0)
-                throw new ArgumentException(
-                    "La solicitud y el autorizador " +
-                    "deben ser válidos.");
-
+            // Comprobar que el servidor es el permitido.
             VerificarEntorno();
 
-            // Identificador único para esta ejecución.
+            // Rechazar solicitudes ya procesadas.
+            VerificarNoProcesada(
+                idSolicitud,
+                idBackupOrigen,
+                fechaSolicitudOrigen);
+
+            // Comprobar el backup antes de modificar datos.
+            string movimientos =
+                ValidarBackupYPrepararMovimientos(
+                    rutaOrigen);
+
             Guid idEjecucion = Guid.NewGuid();
 
-            // El respaldo preventivo se guarda junto
-            // al backup seleccionado, con nombre único.
-            string carpeta = Path.GetDirectoryName(rutaOrigen);
+            string carpeta =
+                Path.GetDirectoryName(rutaOrigen);
 
+            if (string.IsNullOrWhiteSpace(carpeta))
+            {
+                throw new InvalidOperationException(
+                    "No se pudo determinar la carpeta " +
+                    "del respaldo seleccionado.");
+            }
+
+            // Cada resguardo preventivo tiene un nombre
+            // exclusivo para conservar copias anteriores.
             string rutaPreventiva = Path.Combine(
                 carpeta,
                 "AuraBeautyDB_PRE_RESTORE_" +
-                DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") +
+                DateTime.UtcNow.ToString(
+                    "yyyyMMdd_HHmmss_fff") +
                 "_" + idEjecucion.ToString("N") +
                 ".bak");
 
             bool auditoriaCreada = false;
+            bool autorizacionIntentada = false;
             bool restauracionIniciada = false;
 
             try
             {
-                // 1. Verificar el backup elegido.
-                string movimientos =
-                    ValidarBackupYPrepararMovimientos(
-                        rutaOrigen);
+                // ========================================
+                // 1. REGISTRAR INICIO
+                // ========================================
 
-                // 2. Registrar auditoría fuera de AuraBeautyDB.
+                /*
+                 * El índice único externo impide
+                 * insertar otra ejecución activa,
+                 * exitosa o pendiente de revisión
+                 * con la misma identidad.
+                 */
                 IniciarAuditoria(
                     idEjecucion,
                     idSolicitud,
                     idAutorizador,
                     rutaOrigen,
-                    rutaPreventiva);
+                    rutaPreventiva,
+                    idBackupOrigen,
+                    fechaSolicitudOrigen);
 
                 auditoriaCreada = true;
 
-                // 3. Resguardar el estado ACTUAL de la base.
+                // ========================================
+                // 2. RESPALDAR EL ESTADO ACTUAL
+                // ========================================
+
                 Ejecutar(
                     "master",
                     @"BACKUP DATABASE [AuraBeautyDB]
                       TO DISK = @Ruta
-                      WITH COPY_ONLY, INIT,
-                           CHECKSUM, STATS = 10;",
+                      WITH COPY_ONLY,
+                           INIT,
+                           CHECKSUM,
+                           STATS = 10;",
                     rutaPreventiva);
 
-                // 4. Verificar que el resguardo sea legible.
+                // ========================================
+                // 3. VERIFICAR EL RESPALDO PREVENTIVO
+                // ========================================
+
                 Leer(
                     "master",
                     @"RESTORE VERIFYONLY
@@ -622,41 +736,50 @@ namespace Datos
                     idEjecucion,
                     "RESGUARDADA");
 
+                // ========================================
+                // 4. REGISTRAR AUTORIZACIÓN
+                // ========================================
 
-                // El respaldo preventivo ya fue creado y verificado.
-                //
-                // Recién ahora se registra la autorización.
-                // Si esta operación falla, NO comienza el RESTORE.
+                /*
+                 * IMPORTANTE:
+                 *
+                 * Marcamos el intento ANTES de llamar
+                 * al procedimiento de autorización.
+                 *
+                 * Si SQL registra la autorización pero
+                 * ocurre un error de comunicación al
+                 * devolver el resultado, no podemos
+                 * considerarla simplemente fallida.
+                 */
+                autorizacionIntentada = true;
+
                 confirmarAutorizacion();
 
+                // ========================================
+                // 5. COMENZAR RESTAURACIÓN
+                // ========================================
 
-                // 5. Registrar que entramos en la etapa
-                //    que puede reemplazar AuraBeautyDB.
                 ActualizarAuditoria(
                     idEjecucion,
                     "RESTAURANDO");
 
-                // Cerrar las conexiones inactivas del pool.
                 SqlConnection.ClearAllPools();
 
                 restauracionIniciada = true;
 
                 /*
-                 * 6. Restaurar AuraBeautyDB.
-                 *
                  * SINGLE_USER:
-                 * Cierra las conexiones existentes.
+                 * Desconecta otras sesiones de la base.
                  *
-                 * REPLACE:
-                 * Permite sustituir la base actual.
+                 * RESTORE WITH REPLACE:
+                 * Reemplaza AuraBeautyDB con el
+                 * respaldo seleccionado.
                  *
                  * MOVE:
-                 * Utiliza las rutas físicas actuales.
+                 * Conserva las rutas físicas actuales.
                  *
                  * MULTI_USER:
-                 * Habilita nuevamente las conexiones.
-                 *
-                 * Todo se ejecuta desde master.
+                 * Vuelve a permitir conexiones.
                  */
                 string restauracion =
                     @"ALTER DATABASE [AuraBeautyDB]
@@ -681,7 +804,10 @@ namespace Datos
 
                 SqlConnection.ClearAllPools();
 
-                // 7. Comprobar que la base quedó ONLINE.
+                // ========================================
+                // 6. VERIFICAR ESTADO DE LA BASE
+                // ========================================
+
                 DataTable resultado = Leer(
                     "master",
                     @"SELECT state_desc
@@ -694,26 +820,31 @@ namespace Datos
                     ) != "ONLINE")
                 {
                     throw new InvalidOperationException(
-                        "La base no quedó en estado ONLINE.");
+                        "La base restaurada no quedó " +
+                        "en estado ONLINE.");
                 }
 
-                // 8. Registrar éxito fuera de la base.
+                // ========================================
+                // 7. REGISTRAR FINALIZACIÓN
+                // ========================================
+
                 ActualizarAuditoria(
                     idEjecucion,
                     "EXITOSA",
                     "AuraBeautyDB restaurada. " +
-                    "Se conserva el respaldo preventivo.");
+                    "Respaldo preventivo conservado.");
 
                 return rutaPreventiva;
             }
             catch (Exception ex)
             {
                 /*
-                 * Si ya comenzó el RESTORE, no podemos
-                 * asegurar que la base esté intacta.
+                 * Si comenzó el RESTORE, intentamos
+                 * restablecer el acceso a la base.
                  *
-                 * Por eso registramos REVISAR, no
-                 * una afirmación incorrecta de FALLIDA.
+                 * No ejecutamos otro RESTORE ni
+                 * recuperamos automáticamente el
+                 * respaldo preventivo.
                  */
                 if (restauracionIniciada)
                 {
@@ -721,7 +852,8 @@ namespace Datos
                     {
                         Ejecutar(
                             "master",
-                            @"IF DB_ID(N'AuraBeautyDB') IS NOT NULL
+                            @"IF DB_ID(N'AuraBeautyDB')
+                                IS NOT NULL
                               ALTER DATABASE [AuraBeautyDB]
                               SET MULTI_USER
                               WITH ROLLBACK IMMEDIATE;",
@@ -729,7 +861,7 @@ namespace Datos
                     }
                     catch
                     {
-                        // No ocultar el error original.
+                        // Conservar el error principal.
                     }
                 }
 
@@ -737,30 +869,179 @@ namespace Datos
                 {
                     try
                     {
-                        ActualizarAuditoria(
-                            idEjecucion,
+                        /*
+                         * Antes de intentar autorizar:
+                         * FALLIDA admite una nueva
+                         * evaluación posterior.
+                         *
+                         * Desde que se intenta autorizar:
+                         * REVISAR bloquea reintentos
+                         * automáticos, incluso si el
+                         * RESTORE todavía no comenzó.
+                         */
+                        string estadoError =
+                            autorizacionIntentada ||
                             restauracionIniciada
                                 ? "REVISAR"
-                                : "FALLIDA",
+                                : "FALLIDA";
+
+                        ActualizarAuditoria(
+                            idEjecucion,
+                            estadoError,
                             ex.Message);
                     }
                     catch
                     {
-                        // El error de auditoría tampoco
-                        // debe ocultar el error principal.
+                        // No ocultar el error original.
                     }
                 }
 
                 throw new InvalidOperationException(
                     "No se pudo completar la recuperación. " +
-                    "No la ejecutes nuevamente sin revisar " +
-                    "el estado de las bases de datos.\n\n" +
-                    "Resguardo previsto: " +
+                    "No vuelvas a autorizar esta solicitud " +
+                    "sin revisar la auditoría externa.\n\n" +
+                    "Respaldo preventivo previsto:\n" +
                     rutaPreventiva + "\n\n" +
                     "Detalle: " + ex.Message,
                     ex);
             }
         }
+
+        
+
+        /// <summary>
+        /// Recupera desde SQL Server los datos reales
+        /// de una solicitud todavía pendiente.
+        ///
+        /// El solicitante debe ser distinto del
+        /// administrador que autoriza.
+        ///
+        /// La fecha procede de la base de datos,
+        /// no del reloj de la computadora.
+        /// </summary>
+        public IdentidadSolicitudPendiente
+            ObtenerIdentidadSolicitudPendiente(
+                int idSolicitud,
+                int idAdministrador)
+        {
+            using (SqlConnection conexion =
+                new SqlConnection(Cadena(BaseOriginal)))
+            using (SqlCommand comando = new SqlCommand(@"
+                SELECT
+                    r.id_backup AS IdBackup,
+                    r.fecha_solicitud AS FechaSolicitud,
+                    b.ruta_archivo AS RutaArchivo
+                FROM dbo.RestauracionSolicitud AS r
+                INNER JOIN dbo.BackupRegistro AS b
+                    ON b.id_backup = r.id_backup
+                WHERE r.id_solicitud = @IdSolicitud
+                  AND r.id_solicitante <> @IdAdministrador
+                  AND r.estado = 'Pendiente'
+                  AND b.estado = 'Exitoso';",
+                conexion))
+            {
+                comando.Parameters.Add(
+                    "@IdSolicitud", SqlDbType.Int
+                ).Value = idSolicitud;
+
+                comando.Parameters.Add(
+                    "@IdAdministrador", SqlDbType.Int
+                ).Value = idAdministrador;
+
+                conexion.Open();
+
+                using (SqlDataReader lector =
+                    comando.ExecuteReader())
+                {
+                    if (!lector.Read())
+                    {
+                        throw new InvalidOperationException(
+                            "La solicitud ya no está pendiente " +
+                            "o su respaldo no es válido.");
+                    }
+
+                    if (lector["FechaSolicitud"] ==
+                        DBNull.Value)
+                    {
+                        throw new InvalidOperationException(
+                            "La solicitud no tiene una fecha válida.");
+                    }
+
+                    return new IdentidadSolicitudPendiente
+                    {
+                        IdBackup = Convert.ToInt32(
+                            lector["IdBackup"]),
+
+                        FechaSolicitud = Convert.ToDateTime(
+                            lector["FechaSolicitud"]),
+
+                        RutaArchivo = Convert.ToString(
+                            lector["RutaArchivo"])
+                    };
+                }
+            }
+        }
+
+        /// <summary>
+        /// Impide repetir una recuperación que ya tiene
+        /// una ejecución no fallida en la auditoría.
+        ///
+        /// La verificación utiliza:
+        /// - Identificador de solicitud.
+        /// - Identificador del respaldo.
+        /// - Fecha exacta de solicitud.
+        ///
+        /// El índice único de SQL Server sigue siendo
+        /// la protección definitiva frente a dos
+        /// inserciones simultáneas.
+        /// </summary>
+        public void VerificarNoProcesada(
+            int idSolicitud,
+            int idBackup,
+            DateTime fechaSolicitud)
+        {
+            using (SqlConnection conexion =
+                new SqlConnection(Cadena(BaseAuditoria)))
+            using (SqlCommand comando = new SqlCommand(@"
+                SELECT TOP (1) Estado
+                FROM dbo.RestauracionAuditoria
+                WHERE IdSolicitud = @IdSolicitud
+                  AND IdBackupOrigen = @IdBackup
+                  AND FechaSolicitudOrigen = @FechaSolicitud
+                  AND Estado <> 'FALLIDA';",
+                conexion))
+            {
+                comando.Parameters.Add(
+                    "@IdSolicitud", SqlDbType.Int
+                ).Value = idSolicitud;
+
+                comando.Parameters.Add(
+                    "@IdBackup", SqlDbType.Int
+                ).Value = idBackup;
+
+                SqlParameter parametroFecha =
+                    comando.Parameters.Add(
+                        "@FechaSolicitud",
+                        SqlDbType.DateTime2);
+
+                parametroFecha.Scale = 7;
+                parametroFecha.Value = fechaSolicitud;
+
+                conexion.Open();
+
+                object estado = comando.ExecuteScalar();
+
+                if (estado != null &&
+                    estado != DBNull.Value)
+                {
+                    throw new InvalidOperationException(
+                        "Esta solicitud ya tiene una " +
+                        "recuperación registrada con estado: " +
+                        Convert.ToString(estado) + ".\n\n" +
+                        "No se ejecutará nuevamente. " +
+                        "Revisá la auditoría externa.");
+                }
+            }
+        }
     }
 }
-

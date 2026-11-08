@@ -597,19 +597,17 @@ namespace Negocio
 
 
         /// <summary>
-        /// Autoriza una restauración y recupera AuraBeautyDB
-        /// sobre su nombre original.
+        /// Autoriza una restauración desde la cuenta
+        /// del administrador que inició sesión.
         ///
-        /// Orden de seguridad:
-        /// 1. Validar administrador y contraseña.
-        /// 2. Comprobar que la solicitud esté pendiente.
-        /// 3. Verificar el archivo de respaldo.
-        /// 4. Crear y verificar el respaldo preventivo.
-        /// 5. Registrar la autorización.
-        /// 6. Ejecutar la restauración definitiva.
+        /// Comprueba la contraseña y recupera la
+        /// identidad original de la solicitud.
         ///
-        /// El historial de recuperación se registra
-        /// en AuraBeautyDB_Admin.
+        /// Impide reutilizar una solicitud que ya
+        /// tenga una recuperación registrada.
+        ///
+        /// La autorización ocurre solamente después
+        /// de crear y verificar el respaldo preventivo.
         /// </summary>
         public string AutorizarYRestaurarOriginal(
             int idSolicitud,
@@ -618,7 +616,7 @@ namespace Negocio
             string contraseña)
         {
             // ===========================================
-            // 1. VALIDACIONES GENERALES
+            // 1. VALIDAR IDENTIFICADORES
             // ===========================================
 
             if (idSolicitud <= 0 ||
@@ -629,21 +627,22 @@ namespace Negocio
                     "Los identificadores no son válidos.");
             }
 
+            // Nadie puede autorizar su propia solicitud.
             if (idSolicitante == idAdministradorSesion)
             {
                 throw new InvalidOperationException(
                     "No podés autorizar tu propia solicitud.");
             }
 
+            // ===========================================
+            // 2. VALIDAR CONTRASEÑA
+            // ===========================================
+
             if (string.IsNullOrEmpty(contraseña))
             {
                 throw new ArgumentException(
                     "Ingresá tu contraseña.");
             }
-
-            // ===========================================
-            // 2. VALIDAR ADMINISTRADOR EN SESIÓN
-            // ===========================================
 
             bool claveValida =
                 objCD_Backup.ValidarClaveSesion(
@@ -657,68 +656,84 @@ namespace Negocio
             }
 
             // ===========================================
-            // 3. PREPARAR RESTAURACIÓN
+            // 3. COMPROBAR ENTORNO
             // ===========================================
 
             CD_RestauracionSegura restaurador =
                 new CD_RestauracionSegura();
 
-            // La base administrativa debe existir.
             restaurador.VerificarEntorno();
 
-            // Obtener el respaldo de una solicitud pendiente.
-            string rutaOrigen =
-                restaurador.ObtenerRutaPendiente(
+            // ===========================================
+            // 4. IDENTIFICAR SOLICITUD REAL
+            // ===========================================
+
+            CD_RestauracionSegura
+                .IdentidadSolicitudPendiente solicitud =
+                restaurador.ObtenerIdentidadSolicitudPendiente(
                     idSolicitud,
                     idAdministradorSesion);
 
-            // Verificar estructura y validez del respaldo
-            // antes de iniciar modificaciones.
+            // ===========================================
+            // 5. EVITAR EJECUCIONES DUPLICADAS
+            // ===========================================
+
+            restaurador.VerificarNoProcesada(
+                idSolicitud,
+                solicitud.IdBackup,
+                solicitud.FechaSolicitud);
+
+            // ===========================================
+            // 6. VALIDAR BACKUP SELECCIONADO
+            // ===========================================
+
             restaurador.ValidarBackupYPrepararMovimientos(
-                rutaOrigen);
+                solicitud.RutaArchivo);
 
             // ===========================================
-            // 4. EJECUTAR CIRCUITO SEGURO
+            // 7. RESTAURAR CON RESPALDO PREVENTIVO
             // ===========================================
-
-            /*
-             * RestaurarOriginal ejecutará:
-             *
-             * A. Crear el respaldo preventivo.
-             * B. Verificar ese respaldo.
-             * C. Ejecutar la función de autorización.
-             * D. Restaurar la base original.
-             *
-             * La autorización no ocurre antes del
-             * respaldo preventivo.
-             */
 
             return restaurador.RestaurarOriginal(
                 idSolicitud,
                 idAdministradorSesion,
-                rutaOrigen,
+                solicitud.RutaArchivo,
+                solicitud.IdBackup,
+                solicitud.FechaSolicitud,
                 () =>
                 {
-                    // Volver a verificar que la solicitud
-                    // continúa pendiente y que el archivo
-                    // asociado sigue siendo el mismo.
+                    /*
+                     * La solicitud pudo cambiar
+                     * mientras se generaba el respaldo.
+                     *
+                     * Por eso volvemos a leerla
+                     * antes de autorizar.
+                     */
+                    CD_RestauracionSegura
+                        .IdentidadSolicitudPendiente actual =
+                        restaurador
+                            .ObtenerIdentidadSolicitudPendiente(
+                                idSolicitud,
+                                idAdministradorSesion);
 
-                    string rutaActual =
-                        restaurador.ObtenerRutaPendiente(
-                            idSolicitud,
-                            idAdministradorSesion);
-
-                    if (!string.Equals(
-                        rutaOrigen,
-                        rutaActual,
-                        StringComparison.OrdinalIgnoreCase))
+                    if (actual.IdBackup != solicitud.IdBackup ||
+                        actual.FechaSolicitud !=
+                            solicitud.FechaSolicitud ||
+                        !string.Equals(
+                            actual.RutaArchivo,
+                            solicitud.RutaArchivo,
+                            StringComparison.OrdinalIgnoreCase))
                     {
                         throw new InvalidOperationException(
-                            "El respaldo asociado a la solicitud " +
-                            "cambió durante el proceso.");
+                            "La solicitud cambió durante " +
+                            "el proceso de recuperación.");
                     }
 
-                    // Recién ahora registrar la autorización.
+                    /*
+                     * SP_Restore_Autorizar vuelve
+                     * a comprobar que la solicitud
+                     * esté pendiente y sea ajena.
+                     */
                     objCD_Backup.AutorizarRestauracion(
                         idSolicitud,
                         idAdministradorSesion);
