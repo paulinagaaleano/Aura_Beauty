@@ -10,15 +10,15 @@ El proyecto implementa una arquitectura de cuatro capas y reúne las operaciones
 
 **Contenido**
 - [Funcionalidades](#funcionalidades)
-- Roles y permisos
-- Ventas y control de stock
-- Respaldos y restauración
-- Arquitectura
-- Requisitos
-- Instalación y ejecución
-- Estructura del repositorio
-- Consideraciones técnicas
-- Finalidad académica
+- [Roles y permisos](#roles-y-permisos)
+- [Ventas y control de stock](#ventas-y-control-de-stock)
+- [Respaldos y restauración](#respaldos-y-restauración)
+- [Arquitectura](#arquitectura)
+- [Requisitos](#requisitos)
+- [Instalación y ejecución](#instalación-y-ejecucion)
+- [Estructura del repositorio](#estructura-del-repositorio)
+- [Consideraciones técnicas](#consideraciones-técnicas)
+- [Finalidad académica](#finalidad-academica)
 
 ## Funcionalidades
 | Modulo                  |                                         Funciones principales                                                        |
