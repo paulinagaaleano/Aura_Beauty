@@ -9,7 +9,7 @@ El proyecto implementa una arquitectura de cuatro capas y reúne las operaciones
 **Tecnologías:** C# · .NET Framework 4.7.2 · Windows Forms · SQL Server LocalDB · ADO.NET · PDFsharp-GDI · Git
 
 **Contenido**
-- Funcionalidades
+- [Funcionalidades](#funcionalidades)
 - Roles y permisos
 - Ventas y control de stock
 - Respaldos y restauración
