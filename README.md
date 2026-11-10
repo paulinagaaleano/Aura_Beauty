@@ -15,10 +15,10 @@ El proyecto implementa una arquitectura de cuatro capas y reúne las operaciones
 - [Respaldos y restauración](#respaldos-y-restauración)
 - [Arquitectura](#arquitectura)
 - [Requisitos](#requisitos)
-- [Instalación y ejecución](#instalación-y-ejecucion)
+- [Instalación y ejecución](#instalación-y-ejecución)
 - [Estructura del repositorio](#estructura-del-repositorio)
 - [Consideraciones técnicas](#consideraciones-técnicas)
-- [Finalidad académica](#finalidad-academica)
+- [Finalidad académica](#finalidad-académica)
 
 ## Funcionalidades
 | Modulo                  |                                         Funciones principales                                                        |
