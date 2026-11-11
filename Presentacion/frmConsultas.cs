@@ -900,5 +900,19 @@ namespace Aura_Beauty
             g.AutoSizeColumnsMode =
                 DataGridViewAutoSizeColumnsMode.Fill;
         }
+
+
+        /// <summary>
+        /// Evento que se ejecuta cuando se carga el formulario
+        /// de consultas.
+        /// 
+        /// Se conserva para mantener la vinculación del evento
+        /// Load configurada en el diseñador de Windows Forms.
+        /// </summary>
+        private void frmConsultas_Load_1(object sender, EventArgs e)
+        {
+            // No requiere acciones adicionales.
+        }
+
     }
 }
