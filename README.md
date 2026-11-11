@@ -136,7 +136,7 @@ El script completo se encuentra en:
 BaseDeDatos/AuraBeautyDB_Instalacion_Completa_2026.sql
 ```
 **[!WARNING]
-IMPORTANTE:** este script detiene la ejecucion si ```AuraBeautyDB``` ya existe.
+IMPORTANTE:** este script detiene la ejecucion si ```AuraBeautyDB``` ya existe. REQUIERE SSMS CON Query > SQLCMD Mode ACTIVADO.
 
 El archivo incluye estructura y registros de demostración. Los módulos incorporados posteriormente requieren objetos complementarios que también están en ```BaseDeDatos/```:
 
