@@ -69,145 +69,145 @@ namespace Datos
 
 
         /// <summary>
-        /// Comprueba que la restauración se realizará
-        /// sobre la instancia ORIGINAL de Aura Beauty.
+        /// Verifica que el entorno de restauración sea válido.
         ///
-        /// Verifica:
-        /// 1. El servidor configurado.
-        /// 2. La base de datos de destino.
-        /// 3. Las rutas físicas de los archivos.
-        /// 4. La existencia de la auditoría externa.
+        /// Comprueba:
+        /// 1. La conexión a la base comercial AuraBeautyDB.
+        /// 2. La existencia de ambas bases de datos.
+        /// 3. Que las bases estén ONLINE.
+        /// 4. Que cada base tenga un archivo de datos y uno
+        ///    de registro.
+        /// 5. La existencia de la tabla de auditoría externa.
         ///
-        /// No crea, modifica ni restaura datos.
+        /// No utiliza rutas físicas fijas ni depende
+        /// del nombre de usuario de Windows.
+        ///
+        /// No realiza ningún cambio en SQL Server.
         /// </summary>
         public void VerificarEntorno()
         {
-            // ===========================================
-            // 1. VALIDAR CONEXIÓN ORIGINAL
-            // ===========================================
+            // ==============================================
+            // 1. VALIDAR LA CONEXIÓN CONFIGURADA
+            // ==============================================
 
             SqlConnectionStringBuilder configuracion =
                 new SqlConnectionStringBuilder(
                     Conexion.cadena);
 
             if (!string.Equals(
-                configuracion.DataSource,
-                @"(localdb)\MSSQLLocalDB",
-                StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException(
-                    "Restauración bloqueada.\n\n" +
-                    "El servidor configurado no es " +
-                    "la instancia original de Aura Beauty.");
-            }
-
-            if (!string.Equals(
                 configuracion.InitialCatalog,
-                "AuraBeautyDB",
+                BaseOriginal,
                 StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
                     "Restauración bloqueada.\n\n" +
-                    "La base configurada no es AuraBeautyDB.");
+                    "La base de datos configurada " +
+                    "debe ser AuraBeautyDB.");
             }
 
-            // ===========================================
-            // 2. VERIFICAR ARCHIVOS FÍSICOS
-            // ===========================================
+            if (string.IsNullOrWhiteSpace(
+                configuracion.DataSource))
+            {
+                throw new InvalidOperationException(
+                    "No se configuró un servidor SQL válido.");
+            }
+
+            // ==============================================
+            // 2. VERIFICAR AMBAS BASES
+            // ==============================================
 
             using (SqlConnection conexion =
                 new SqlConnection(Cadena("master")))
-            using (SqlCommand comando =
-                new SqlCommand(@"
-                    SELECT CASE WHEN
-
-                    EXISTS
-                    (
-                        SELECT 1
-                        FROM sys.master_files
-                        WHERE database_id =
-                            DB_ID(N'AuraBeautyDB')
-                          AND type = 0
-                          AND physical_name =
-                            N'C:\Users\brend\AuraBeautyDB.mdf'
-                    )
-
-                    AND EXISTS
-                    (
-                        SELECT 1
-                        FROM sys.master_files
-                        WHERE database_id =
-                            DB_ID(N'AuraBeautyDB')
-                          AND type = 1
-                          AND physical_name =
-                            N'C:\Users\brend\AuraBeautyDB_log.ldf'
-                    )
-
-                    AND EXISTS
-                    (
-                        SELECT 1
-                        FROM sys.master_files
-                        WHERE database_id =
-                            DB_ID(N'AuraBeautyDB_Admin')
-                          AND type = 0
-                          AND physical_name =
-                            N'C:\Users\brend\AuraBeautyDB_Admin.mdf'
-                    )
-
-                    AND EXISTS
-                    (
-                        SELECT 1
-                        FROM sys.master_files
-                        WHERE database_id =
-                            DB_ID(N'AuraBeautyDB_Admin')
-                          AND type = 1
-                          AND physical_name =
-                            N'C:\Users\brend\AuraBeautyDB_Admin_log.ldf'
-                    )
-
-                    THEN 1 ELSE 0 END;", conexion))
+            using (SqlCommand comando = new SqlCommand(@"
+                SELECT COUNT(*)
+                FROM sys.databases
+                WHERE name IN
+                    (N'AuraBeautyDB',
+                     N'AuraBeautyDB_Admin')
+                  AND state_desc = 'ONLINE';",
+                conexion))
             {
                 conexion.Open();
 
-                int resultado =
-                    Convert.ToInt32(
-                        comando.ExecuteScalar());
+                int cantidad = Convert.ToInt32(
+                    comando.ExecuteScalar());
 
-                if (resultado != 1)
+                if (cantidad != 2)
                 {
                     throw new InvalidOperationException(
                         "Restauración bloqueada.\n\n" +
-                        "La ubicación de las bases de datos " +
-                        "no coincide con la configuración " +
-                        "original de Aura Beauty.");
+                        "AuraBeautyDB y AuraBeautyDB_Admin " +
+                        "deben existir y estar ONLINE.");
                 }
             }
 
-            // ===========================================
-            // 3. VERIFICAR AUDITORÍA EXTERNA
-            // ===========================================
+            // ==============================================
+            // 3. VERIFICAR ARCHIVOS FÍSICOS
+            //
+            // No importa la carpeta donde SQL Server
+            // instaló los archivos MDF y LDF.
+            //
+            // Se comprueba su estructura, no su ruta.
+            // ==============================================
 
             using (SqlConnection conexion =
-                new SqlConnection(Cadena(BaseAuditoria)))
-            using (SqlCommand comando =
-                new SqlCommand(@"
-                    SELECT OBJECT_ID(
-                        N'dbo.RestauracionAuditoria',
-                        N'U');", conexion))
+                new SqlConnection(Cadena("master")))
+            using (SqlCommand comando = new SqlCommand(@"
+                SELECT COUNT(*)
+                FROM sys.master_files
+                WHERE database_id IN
+                (
+                    DB_ID(N'AuraBeautyDB'),
+                    DB_ID(N'AuraBeautyDB_Admin')
+                )
+                AND type IN (0, 1);",
+                conexion))
             {
                 conexion.Open();
 
-                object resultado = comando.ExecuteScalar();
+                int cantidad = Convert.ToInt32(
+                    comando.ExecuteScalar());
+
+                // Se esperan dos archivos por base:
+                // uno de datos y uno de log.
+                if (cantidad != 4)
+                {
+                    throw new InvalidOperationException(
+                        "Restauración bloqueada.\n\n" +
+                        "La estructura de archivos de las " +
+                        "bases no es compatible con la " +
+                        "restauración automática.");
+                }
+            }
+
+            // ==============================================
+            // 4. VERIFICAR AUDITORÍA EXTERNA
+            // ==============================================
+
+            using (SqlConnection conexion =
+                new SqlConnection(Cadena(BaseAuditoria)))
+            using (SqlCommand comando = new SqlCommand(@"
+                SELECT OBJECT_ID(
+                    N'dbo.RestauracionAuditoria',
+                    N'U');",
+                conexion))
+            {
+                conexion.Open();
+
+                object resultado =
+                    comando.ExecuteScalar();
 
                 if (resultado == null ||
                     resultado == DBNull.Value)
                 {
                     throw new InvalidOperationException(
-                        "No existe la tabla de auditoría " +
-                        "en AuraBeautyDB_Admin.");
+                        "No existe la tabla " +
+                        "RestauracionAuditoria en " +
+                        "AuraBeautyDB_Admin.");
                 }
             }
         }
+
 
 
         /// <summary>
