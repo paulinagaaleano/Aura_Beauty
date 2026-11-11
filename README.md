@@ -131,7 +131,7 @@ Datos/Conexion.cs
 El catálogo operativo utilizado es AuraBeautyDB. Si tu instancia tiene otro nombre, primero deberás ajustar y comprobar la configuración de conexión.
 
 ### 3. Preparar la base de datos
-El script base se encuentra en:
+El script completo se encuentra en:
 ```text
 BaseDeDatos/AuraBeautyDB_Instalacion_Completa_2026.sql
 ```
