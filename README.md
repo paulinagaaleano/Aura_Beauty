@@ -133,10 +133,10 @@ El catálogo operativo utilizado es AuraBeautyDB. Si tu instancia tiene otro nom
 ### 3. Preparar la base de datos
 El script base se encuentra en:
 ```text
-BaseDeDatos/AuraBeautyDB.sql
+BaseDeDatos/AuraBeautyDB_Instalacion_Completa_2026.sql
 ```
 **[!WARNING]
-IMPORTANTE:** este script elimina ```AuraBeautyDB``` si ya existe y luego la crea nuevamente. Usalo solo en una instalación inicial de prueba, cuando no haya datos que conservar. Nunca lo ejecutes como actualización sobre la base de un compañero o una base en uso.
+IMPORTANTE:** este script detiene la ejecucion si ```AuraBeautyDB``` ya existe.
 
 El archivo incluye estructura y registros de demostración. Los módulos incorporados posteriormente requieren objetos complementarios que también están en ```BaseDeDatos/```:
 
