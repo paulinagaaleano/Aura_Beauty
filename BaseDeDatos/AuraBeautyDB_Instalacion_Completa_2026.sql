@@ -1,6 +1,5 @@
 ﻿/*
  AURA BEAUTY - INSTALACION COMPLETA PARA PRUEBAS - 11/11/2026
- FUENTES: TallerII (9).zip + parche de historial persistente.
 
  IMPORTANTE:
  - REQUIERE SSMS CON Query > SQLCMD Mode ACTIVADO.
