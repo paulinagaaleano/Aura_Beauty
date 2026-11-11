@@ -146,15 +146,25 @@ namespace Datos
                     // el IdBackup que devuelve su SELECT final.
                     object resultado = comando.ExecuteScalar();
 
-                    // Comprobar que SQL Server haya devuelto un ID.
-                    if (resultado == null || resultado == DBNull.Value)
+
+                    // Comprobar el identificador generado.
+                    if (resultado == null ||
+                        resultado == DBNull.Value)
                     {
                         throw new Exception(
                             "No se recibió el identificador del backup.");
                     }
 
-                    // Convertir el ID devuelto a un entero.
-                    return Convert.ToInt32(resultado);
+                    // Recuperar el ID del backup.
+                    int idBackup = Convert.ToInt32(resultado);
+
+                    // Conservar el registro en la base
+                    // administrativa permanente.
+                    SincronizarHistorialPermanente();
+
+                    // Devolver el identificador a Negocio.
+                    return idBackup;
+
                 }
             }
         }
@@ -248,15 +258,24 @@ namespace Datos
                     // el identificador de la solicitud creada.
                     object resultado = comando.ExecuteScalar();
 
-                    // Comprobar que se haya generado un ID.
-                    if (resultado == null || resultado == DBNull.Value)
+
+                    if (resultado == null ||
+                        resultado == DBNull.Value)
                     {
                         throw new Exception(
                             "No se recibió el identificador de la solicitud.");
                     }
 
-                    // Devolver el ID a la capa de Negocio.
-                    return Convert.ToInt32(resultado);
+                    // Recuperar el ID de la nueva solicitud.
+                    int idSolicitud = Convert.ToInt32(resultado);
+
+                    // Guardar una copia permanente.
+                    // La nueva solicitud conserva su estado
+                    // inicial, normalmente Pendiente.
+                    SincronizarHistorialPermanente();
+
+                    return idSolicitud;
+
                 }
             }
         }
@@ -296,12 +315,16 @@ namespace Datos
                 motivoRechazo);
         }
 
+
         /// <summary>
-        /// Método auxiliar para ejecutar los procedimientos
-        /// de autorización y rechazo.
+        /// Ejecuta la autorización o rechazo de una solicitud.
         ///
-        /// Centraliza la apertura de conexión y la lectura
-        /// del resultado para evitar repetir código.
+        /// Centraliza ambas operaciones y posteriormente
+        /// sincroniza el resultado con la base administrativa.
+        ///
+        /// La validación de roles y la prohibición de
+        /// autorizar una solicitud propia se mantienen
+        /// en los procedimientos almacenados existentes.
         /// </summary>
         private DataTable EjecutarProcedimientoRestauracion(
             string nombreProcedimiento,
@@ -309,54 +332,67 @@ namespace Datos
             int idAutorizador,
             string motivoRechazo)
         {
-            // Tabla donde se guardará el resultado devuelto.
             DataTable tabla = new DataTable();
 
-            // Crear la conexión.
-            using (SqlConnection conexion =
-                   new SqlConnection(cadenaConexion))
+            // Solo se admiten estos dos procedimientos.
+            if (nombreProcedimiento != "SP_Restore_Autorizar" &&
+                nombreProcedimiento != "SP_Restore_Rechazar")
             {
-                // Crear el comando con el procedimiento recibido.
-                using (SqlCommand comando =
-                       new SqlCommand(nombreProcedimiento, conexion))
-                {
-                    // Configurar el tipo de comando.
-                    comando.CommandType = CommandType.StoredProcedure;
+                throw new ArgumentException(
+                    "Procedimiento de restauración no permitido.");
+            }
 
-                    // Enviar el identificador de la solicitud.
+            // Ejecutar la operación comercial.
+            using (SqlConnection conexion =
+                new SqlConnection(cadenaConexion))
+            {
+                using (SqlCommand comando =
+                    new SqlCommand(
+                        nombreProcedimiento,
+                        conexion))
+                {
+                    comando.CommandType =
+                        CommandType.StoredProcedure;
+
                     comando.Parameters.Add(
                         "@IdSolicitud",
                         SqlDbType.Int).Value = idSolicitud;
 
-                    // Enviar el identificador del autorizador.
                     comando.Parameters.Add(
                         "@IdAutorizador",
                         SqlDbType.Int).Value = idAutorizador;
 
-                    // El procedimiento de rechazo requiere el motivo.
-                    // El de autorización no tiene ese parámetro.
-                    if (nombreProcedimiento == "SP_Restore_Rechazar")
+                    // El rechazo requiere registrar el motivo.
+                    if (nombreProcedimiento ==
+                        "SP_Restore_Rechazar")
                     {
                         comando.Parameters.Add(
                             "@MotivoRechazo",
-                            SqlDbType.NVarChar, 1000).Value =
+                            SqlDbType.NVarChar,
+                            1000).Value =
                             string.IsNullOrWhiteSpace(motivoRechazo)
                                 ? (object)DBNull.Value
                                 : motivoRechazo;
                     }
 
-                    // Ejecutar el procedimiento y llenar la tabla.
                     using (SqlDataAdapter adaptador =
-                           new SqlDataAdapter(comando))
+                        new SqlDataAdapter(comando))
                     {
                         adaptador.Fill(tabla);
                     }
                 }
             }
 
-            // Devolver los datos a la capa de Negocio.
+            // La autorización o el rechazo ya se
+            // registró en la base comercial.
+            //
+            // Ahora conservamos ese cambio en
+            // AuraBeautyDB_Admin.
+            SincronizarHistorialPermanente();
+
             return tabla;
         }
+
 
 
         /// <summary>
@@ -402,34 +438,41 @@ namespace Datos
         }
 
 
-        /// <summary>
-        /// Obtiene el historial completo de solicitudes de restauración.
-        /// El procedimiento verifica que el usuario sea un administrador activo.
-        /// </summary>
+
+
         public DataTable ListarHistorialRestauraciones(int idUsuario)
         {
-            // Creamos una tabla para recibir los resultados.
+            if (idUsuario <= 0)
+            {
+                throw new ArgumentException(
+                    "El identificador del usuario no es válido.");
+            }
+
             DataTable tabla = new DataTable();
 
-            // Abrimos la conexión y preparamos la llamada al procedimiento.
-            using (SqlConnection conexion = new SqlConnection(Conexion.cadena))
-            using (SqlCommand comando = new SqlCommand(
-                "SP_Restore_ListarHistorial", conexion))
+            using (SqlConnection conexion =
+                new SqlConnection(cadenaConexion))
             {
-                // Indicamos que vamos a ejecutar un procedimiento almacenado.
-                comando.CommandType = CommandType.StoredProcedure;
-
-                // Enviamos el ID del usuario que consulta el historial.
-                comando.Parameters.Add("@IdUsuario", SqlDbType.Int).Value = idUsuario;
-
-                // Ejecutamos la consulta y cargamos el resultado en la tabla.
-                using (SqlDataAdapter adaptador = new SqlDataAdapter(comando))
+                using (SqlCommand comando =
+                    new SqlCommand(
+                        "dbo.SP_Restore_ListarHistorial",
+                        conexion))
                 {
-                    adaptador.Fill(tabla);
+                    comando.CommandType =
+                        CommandType.StoredProcedure;
+
+                    comando.Parameters.Add(
+                        "@IdUsuario",
+                        SqlDbType.Int).Value = idUsuario;
+
+                    using (SqlDataAdapter adaptador =
+                        new SqlDataAdapter(comando))
+                    {
+                        adaptador.Fill(tabla);
+                    }
                 }
             }
 
-            // Devolvemos el historial obtenido.
             return tabla;
         }
 
@@ -876,6 +919,44 @@ namespace Datos
             }
         }
 
+
+        /// <summary>
+        /// Sincroniza los registros comerciales de backups y
+        /// solicitudes de restauración con la base
+        /// AuraBeautyDB_Admin.
+        ///
+        /// La base administrativa es independiente y no se
+        /// reemplaza al restaurar AuraBeautyDB.
+        ///
+        /// Este procedimiento permite conservar el historial
+        /// aunque una restauración antigua elimine los triggers
+        /// instalados en la base comercial.
+        ///
+        /// Si ocurre un error, la excepción se propaga.
+        /// La operación comercial podría haberse registrado,
+        /// por lo que debe verificarse antes de reintentar.
+        /// </summary>
+        private void SincronizarHistorialPermanente()
+        {
+            using (SqlConnection conexion =
+                new SqlConnection(cadenaConexion))
+            {
+                using (SqlCommand comando =
+                    new SqlCommand(
+                        "AuraBeautyDB_Admin.dbo.SP_SincronizarHistorial",
+                        conexion))
+                {
+                    comando.CommandType =
+                        CommandType.StoredProcedure;
+
+                    comando.CommandTimeout = 60;
+
+                    conexion.Open();
+
+                    comando.ExecuteNonQuery();
+                }
+            }
+        }
 
 
     }

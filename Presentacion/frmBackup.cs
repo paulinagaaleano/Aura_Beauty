@@ -1434,6 +1434,8 @@ namespace Presentacion
                 DataTable historial =
                     objCN_Backup.ListarHistorialRestauraciones(idUsuarioActual);
 
+       
+
                 // Avisar si todavía no hay solicitudes registradas.
                 if (historial.Rows.Count == 0)
                 {
